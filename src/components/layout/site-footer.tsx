@@ -19,7 +19,7 @@ const accountLinks = [
   { href: "/favorit", label: "Favorit" },
   { href: "/notifikasi", label: "Notifikasi" },
   { href: "/profil", label: "Profil" },
-  { href: "/admin", label: "Admin (Demo)" },
+  { href: "/admin", label: "Zero Store V5)" },
 ];
 
 export function SiteFooter() {
@@ -36,13 +36,9 @@ export function SiteFooter() {
                 ZERO<span className="text-brand">STORE</span>
               </span>
             </Link>
-            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              Marketplace premium jual beli akun game. Temukan akun impianmu, atau
-              jual akunmu ke ribuan gamer di seluruh Indonesia.
-            </p>
             <p className="mt-3 inline-flex items-center gap-1.5 rounded-full glass px-3 py-1.5 text-[11px] text-muted-foreground">
               <ShieldCheck className="h-3.5 w-3.5 text-brand" aria-hidden />
-              Build demo — data &amp; transaksi bukan nyata
+              aman — data &amp; terpercaya
             </p>
           </div>
 
