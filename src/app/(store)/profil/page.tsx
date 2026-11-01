@@ -234,45 +234,47 @@ function ProfileContent() {
               {user.handle} · {user.email}
             </p>
           </div>
-          {isAdmin && (
-            <Link
-              href="/admin"
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-strong"
-            >
-              <LayoutDashboard className="h-4 w-4" aria-hidden />
-              Dashboard Admin
-            </Link>
-          )}
-          <AlertDialog>
-            <AlertDialogTrigger
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-brand/40 bg-brand/10 px-4 text-sm font-semibold text-brand transition-colors hover:bg-brand/20"
-              aria-label="Keluar dari akun ZERO STORE"
-            >
-              <LogOut className="h-4 w-4" aria-hidden />
-              Keluar
-            </AlertDialogTrigger>
-            <AlertDialogContent className="glass-strong border-white/10">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="font-display">Keluar dari akun ZERO STORE?</AlertDialogTitle>
-                <AlertDialogDescription className="text-muted-foreground">
-                  Kamu akan keluar dari akun ZERO STORE pada perangkat ini.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel className="border-white/15 bg-transparent hover:bg-white/10 hover:text-foreground">
-                  Batal
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    void signOut().then(() => toast.success("Berhasil keluar")).catch((error) => toast.error(error.message));
-                  }}
-                  className="bg-brand text-white hover:bg-brand-strong"
-                >
-                  Keluar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <div className="relative z-10 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand px-5 text-sm font-bold text-white shadow-lg transition hover:bg-brand-strong active:scale-[0.98] sm:w-auto"
+              >
+                <LayoutDashboard className="h-5 w-5 shrink-0" aria-hidden />
+                Dashboard Admin
+              </Link>
+            )}
+            <AlertDialog>
+              <AlertDialogTrigger
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-brand/40 bg-brand/10 px-5 text-sm font-semibold text-brand transition-colors hover:bg-brand/20 sm:w-auto"
+                aria-label="Keluar dari akun ZERO STORE"
+              >
+                <LogOut className="h-4 w-4" aria-hidden />
+                Keluar
+              </AlertDialogTrigger>
+              <AlertDialogContent className="glass-strong border-white/10">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="font-display">Keluar dari akun ZERO STORE?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-muted-foreground">
+                    Kamu akan keluar dari akun ZERO STORE pada perangkat ini.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="border-white/15 bg-transparent hover:bg-white/10 hover:text-foreground">
+                    Batal
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      void signOut().then(() => toast.success("Berhasil keluar")).catch((error) => toast.error(error.message));
+                    }}
+                    className="bg-brand text-white hover:bg-brand-strong"
+                  >
+                    Keluar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
 
         <p className="mt-4 flex items-start gap-2 rounded-xl bg-amber-400/5 p-3 text-[11px] leading-relaxed text-amber-200/90 ring-1 ring-inset ring-amber-400/20">
