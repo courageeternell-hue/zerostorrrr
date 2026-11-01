@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/store/empty-state";
 import { PrimaryLink, UserListingStatusBadge, OrderStatusBadge } from "@/components/store/badges";
-import { useSession } from "@/lib/store/session";
+import { useAuth } from "@/hooks/use-auth";
 import { useUserListings } from "@/lib/store/user-listings";
 import { useOrders } from "@/lib/store/orders";
 import { useFavorites } from "@/lib/store/favorites";
@@ -73,10 +73,10 @@ function ProfileContent() {
   const searchParams = useSearchParams();
   const tab = (TABS.find((t) => t.value === searchParams.get("tab"))?.value ?? "listing") as Tab;
 
-  const signedIn = useSession((s) => s.signedIn);
-  const user = useSession((s) => s.user);
-  const signIn = useSession((s) => s.signIn);
-  const signOut = useSession((s) => s.signOut);
+  const { user, loading: authLoading, signIn, signOut } = useAuth();
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
 
   const userListings = useUserListings((s) => s.listings);
   const removeUserListing = useUserListings((s) => s.remove);
@@ -102,7 +102,7 @@ function ProfileContent() {
     });
   }
 
-  if (!mounted) {
+  if (!mounted || authLoading) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-8 md:px-6">
         <Skeleton className="h-40 rounded-2xl" />
@@ -112,7 +112,7 @@ function ProfileContent() {
   }
 
   /* ── Belum masuk (setelah logout) ── */
-  if (!signedIn) {
+  if (!user) {
     return (
       <div className="mx-auto max-w-md px-4 py-14 md:px-6">
         <div className="rounded-3xl glass-strong liquid-sheen p-8 text-center">
@@ -121,22 +121,57 @@ function ProfileContent() {
           </span>
           <h1 className="mt-5 font-display text-xl font-bold">Kamu belum masuk</h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Sesi demo telah ditutup. Karena autentikasi backend belum tersedia, kamu
-            dapat melanjutkan dengan sesi demo lokal.
+            Masuk menggunakan akun ZERO STORE untuk mengakses profil dan aktivitasmu.
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              signIn();
-              toast.success("Masuk sebagai Player Demo", {
-                description: "Sesi demo tersimpan di browser ini — bukan autentikasi sungguhan.",
-              });
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setAuthSubmitting(true);
+              try {
+                await signIn(authEmail.trim(), authPassword);
+                setAuthPassword("");
+                toast.success("Berhasil masuk ke ZERO STORE");
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Login gagal. Periksa email dan password.");
+              } finally {
+                setAuthSubmitting(false);
+              }
             }}
-            className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand text-sm font-bold text-white transition-all hover:bg-brand-strong active:scale-[0.98] glow-red"
+            className="mt-6 space-y-3 text-left"
           >
-            <LogIn className="h-4 w-4" aria-hidden />
-            Masuk sebagai Demo User
-          </button>
+            <label className="block text-sm font-medium">
+              Email
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                placeholder="nama@email.com"
+                className="mt-1.5 h-12 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm outline-none focus:border-brand"
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Password
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                placeholder="Masukkan password"
+                className="mt-1.5 h-12 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm outline-none focus:border-brand"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={authSubmitting}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand text-sm font-bold text-white transition-all hover:bg-brand-strong disabled:opacity-60"
+            >
+              <LogIn className="h-4 w-4" aria-hidden />
+              {authSubmitting ? "Memproses..." : "Masuk"}
+            </button>
+          </form>
           <p className="mt-4 flex items-start gap-1.5 text-left text-[11px] leading-relaxed text-muted-foreground">
             <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
             Sistem login sungguhan (token, verifikasi server, enkripsi kredensial)
@@ -163,7 +198,7 @@ function ProfileContent() {
             <h1 className="flex items-center gap-1.5 font-display text-xl font-bold">
               {user.name}
               <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground ring-1 ring-inset ring-white/15">
-                Akun Demo
+                Akun Terdaftar
               </span>
             </h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
@@ -173,17 +208,16 @@ function ProfileContent() {
           <AlertDialog>
             <AlertDialogTrigger
               className="inline-flex h-10 items-center gap-2 rounded-xl border border-brand/40 bg-brand/10 px-4 text-sm font-semibold text-brand transition-colors hover:bg-brand/20"
-              aria-label="Keluar dari sesi demo"
+              aria-label="Keluar dari akun ZERO STORE"
             >
               <LogOut className="h-4 w-4" aria-hidden />
               Keluar
             </AlertDialogTrigger>
             <AlertDialogContent className="glass-strong border-white/10">
               <AlertDialogHeader>
-                <AlertDialogTitle className="font-display">Keluar dari sesi demo?</AlertDialogTitle>
+                <AlertDialogTitle className="font-display">Keluar dari akun ZERO STORE?</AlertDialogTitle>
                 <AlertDialogDescription className="text-muted-foreground">
-                  Ini hanya menutup sesi demo di browser. Belum ada autentikasi server
-                  yang diakhiri, karena sistem login sungguhan belum diimplementasikan.
+                  Kamu akan keluar dari akun ZERO STORE pada perangkat ini.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -192,8 +226,7 @@ function ProfileContent() {
                 </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
-                    signOut();
-                    toast("Sesi demo ditutup");
+                    void signOut().then(() => toast.success("Berhasil keluar")).catch((error) => toast.error(error.message));
                   }}
                   className="bg-brand text-white hover:bg-brand-strong"
                 >

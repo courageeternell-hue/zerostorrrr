@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Bell, Search, User, X } from "lucide-react";
 import { SearchBar } from "@/components/store/search-bar";
 import { useNotifications } from "@/lib/store/notifications";
-import { useSession } from "@/lib/store/session";
+import { useAuth } from "@/hooks/use-auth";
 import { DEMO_NOTIFICATIONS } from "@/lib/demo-notifications";
 import { useMounted } from "@/hooks/use-mounted";
 import { initials } from "@/lib/format";
@@ -26,8 +26,7 @@ export function SiteHeader() {
   const [searchNonce, setSearchNonce] = useState(0);
   const mobileSearchOpen = openedAtPath !== null && openedAtPath === pathname;
   const readIds = useNotifications((s) => s.readIds);
-  const signedIn = useSession((s) => s.signedIn);
-  const user = useSession((s) => s.user);
+  const { user } = useAuth();
 
   const unreadCount = mounted
     ? DEMO_NOTIFICATIONS.filter((n) => !n.read && !readIds.includes(n.id)).length
@@ -97,7 +96,7 @@ export function SiteHeader() {
             aria-label="Profil pengguna"
             className="flex items-center rounded-full transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-ring"
           >
-            {mounted && signedIn ? (
+            {mounted && user ? (
               <span className="flex h-9 w-9 items-center justify-center rounded-full glass-red font-display text-sm font-bold text-white">
                 {initials(user.name)}
               </span>
