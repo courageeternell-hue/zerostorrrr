@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import {
   Info,
   LogIn,
   LogOut,
+  LayoutDashboard,
   Package,
   Settings2,
   ShieldAlert,
@@ -35,6 +36,7 @@ import {
 import { EmptyState } from "@/components/store/empty-state";
 import { PrimaryLink, UserListingStatusBadge, OrderStatusBadge } from "@/components/store/badges";
 import { useAuth } from "@/hooks/use-auth";
+import { createClient } from "@/lib/supabase/client";
 import { useUserListings } from "@/lib/store/user-listings";
 import { useOrders } from "@/lib/store/orders";
 import { useFavorites } from "@/lib/store/favorites";
@@ -74,6 +76,33 @@ function ProfileContent() {
   const tab = (TABS.find((t) => t.value === searchParams.get("tab"))?.value ?? "listing") as Tab;
 
   const { user, loading: authLoading, signIn, signOut } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function checkAdmin() {
+      if (!user?.id) {
+        setIsAdmin(false);
+        return;
+      }
+
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (active) setIsAdmin(!error && Boolean(data));
+    }
+
+    void checkAdmin();
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authSubmitting, setAuthSubmitting] = useState(false);
@@ -205,6 +234,15 @@ function ProfileContent() {
               {user.handle} · {user.email}
             </p>
           </div>
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-strong"
+            >
+              <LayoutDashboard className="h-4 w-4" aria-hidden />
+              Dashboard Admin
+            </Link>
+          )}
           <AlertDialog>
             <AlertDialogTrigger
               className="inline-flex h-10 items-center gap-2 rounded-xl border border-brand/40 bg-brand/10 px-4 text-sm font-semibold text-brand transition-colors hover:bg-brand/20"

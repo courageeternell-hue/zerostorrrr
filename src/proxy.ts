@@ -30,7 +30,40 @@ export async function proxy(request: NextRequest) {
     },
   })
 
-  await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const isAdminRoute = request.nextUrl.pathname === '/admin'
+    || request.nextUrl.pathname.startsWith('/admin/')
+
+  if (isAdminRoute) {
+    let isAdmin = false
+
+    if (user) {
+      const { data, error } = await supabase
+        .from('admin_users')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      isAdmin = !error && Boolean(data)
+    }
+
+    if (!isAdmin) {
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = '/'
+      redirectUrl.search = ''
+
+      const redirectResponse = NextResponse.redirect(redirectUrl)
+
+      response.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie)
+      })
+
+      return redirectResponse
+    }
+  }
 
   return response
 }
