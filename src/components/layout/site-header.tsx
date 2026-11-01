@@ -26,7 +26,7 @@ export function SiteHeader() {
   const [searchNonce, setSearchNonce] = useState(0);
   const mobileSearchOpen = openedAtPath !== null && openedAtPath === pathname;
   const readIds = useNotifications((s) => s.readIds);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const unreadCount = mounted
     ? DEMO_NOTIFICATIONS.filter((n) => !n.read && !readIds.includes(n.id)).length
@@ -72,6 +72,16 @@ export function SiteHeader() {
           >
             {mobileSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </button>
+
+          {/* Tombol Daftar untuk pengunjung */}
+          {mounted && !authLoading && !user && (
+            <Link
+              href="/daftar"
+              className="inline-flex min-h-9 items-center justify-center rounded-full bg-brand px-3 text-xs font-bold text-white transition hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              Daftar
+            </Link>
+          )}
 
           {/* Notifikasi (tombol terpisah) */}
           <Link
