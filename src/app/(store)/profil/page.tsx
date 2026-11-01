@@ -201,11 +201,7 @@ function ProfileContent() {
               {authSubmitting ? "Memproses..." : "Masuk"}
             </button>
           </form>
-          <p className="mt-4 flex items-start gap-1.5 text-left text-[11px] leading-relaxed text-muted-foreground">
-            <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            Sistem login sungguhan (token, verifikasi server, enkripsi kredensial)
-            belum diimplementasikan — lihat README bagian integrasi backend.
-          </p>
+
         </div>
       </div>
     );
