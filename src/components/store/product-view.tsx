@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   BadgeCheck,
@@ -20,33 +20,56 @@ import { ProductGallery } from "@/components/store/product-gallery";
 import { FavoriteButton } from "@/components/store/favorite-button";
 import { EmptyState } from "@/components/store/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getListingById, similarListings } from "@/lib/listings";
 import { getGame, gameName } from "@/lib/games";
 import { formatDateID, formatRupiah, initials, serviceFee, timeAgo } from "@/lib/format";
-import { useUserListings } from "@/lib/store/user-listings";
-import { useMounted } from "@/hooks/use-mounted";
-import type { Listing, UserListing } from "@/lib/types";
-import { ProductCard } from "@/components/store/product-card";
+import type { Listing } from "@/lib/types";
 
 interface ProductViewProps {
   id: string;
 }
 
-/** Halaman detail produk: mendukung listing demo & listing buatan pengguna. */
+/** Detail produk hanya menggunakan listing asli dari Supabase. */
 export function ProductView({ id }: ProductViewProps) {
-  const mounted = useMounted();
-  const userListings = useUserListings((s) => s.listings);
-
-  const demo = getListingById(id);
-  const userListing = userListings.find((l) => l.id === id);
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Catatan: view count nyata harus dihitung server-side (anti-spam).
+    let active = true;
+
+    async function loadListing() {
+      setLoading(true);
+      setListing(null);
+
+      try {
+        const response = await fetch(
+          `/api/public/listings/${encodeURIComponent(id)}`,
+          { cache: "no-store" }
+        );
+
+        if (!response.ok) {
+          if (response.status !== 404) {
+            throw new Error("Gagal mengambil detail listing.");
+          }
+          return;
+        }
+
+        const result = await response.json();
+        if (active) setListing(result.listing ?? null);
+      } catch (error) {
+        console.error("Gagal memuat detail produk:", error);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadListing();
+
+    return () => {
+      active = false;
+    };
   }, [id]);
 
-  if (demo) return <DemoProductView listing={demo} />;
-  if (userListing) return <UserProductView listing={userListing} />;
-  if (!mounted) {
+  if (loading) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
         <Skeleton className="h-6 w-40" />
@@ -62,32 +85,35 @@ export function ProductView({ id }: ProductViewProps) {
     );
   }
 
-  return (
-    <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
-      <EmptyState
-        icon={PackageX}
-        title="Listing tidak ditemukan"
-        description="Listing mungkin telah dihapus, tidak pernah ada, atau masih berupa draft yang belum diterbitkan."
-        action={
-          <Link
-            href="/katalog"
-            className="inline-flex h-11 items-center rounded-xl bg-brand px-6 text-sm font-semibold text-white transition-colors hover:bg-brand-strong"
-          >
-            Jelajahi Katalog
-          </Link>
-        }
-      />
-    </div>
-  );
+  if (!listing) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-8 md:px-6">
+        <EmptyState
+          icon={PackageX}
+          title="Listing tidak ditemukan"
+          description="Listing tidak tersedia, sudah dihapus, atau belum diterbitkan."
+          action={
+            <Link
+              href="/katalog"
+              className="inline-flex h-11 items-center rounded-xl bg-brand px-6 text-sm font-semibold text-white transition-colors hover:bg-brand-strong"
+            >
+              Jelajahi Katalog
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
+  return <ListingProductView listing={listing} />;
 }
 
-/* ── Tampilan listing demo ─────────────────────────────────────── */
+/* ── Tampilan listing Supabase ────────────────────────────────── */
 
-function DemoProductView({ listing }: { listing: Listing }) {
+function ListingProductView({ listing }: { listing: Listing }) {
   const game = getGame(listing.game);
   const fee = serviceFee(listing.price);
   const sold = listing.status === "terjual";
-  const similar = similarListings(listing, 4);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
@@ -171,7 +197,7 @@ function DemoProductView({ listing }: { listing: Listing }) {
               Tips Transaksi Aman
             </h2>
             <ul className="mt-2.5 list-inside list-disc space-y-1 text-xs leading-relaxed text-amber-200/80">
-              <li>Selesaikan pembayaran hanya melalui sistem ZERO STORE — dana ditahan escrow.</li>
+              <li>Selesaikan pembayaran hanya melalui sistem ZERO STORE — pastikan seluruh proses transaksi dilakukan melalui kanal resmi ZERO STORE.</li>
               <li>Jangan pernah meminta atau membagikan password akun game sebelum pembayaran terverifikasi.</li>
               <li>Rekam layar saat proses serah terima akun sebagai bukti.</li>
             </ul>
@@ -303,29 +329,10 @@ function DemoProductView({ listing }: { listing: Listing }) {
                 </dd>
               </div>
             </dl>
-            <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
-              <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-              {game?.name ? `Listing ${game.name} ini` : "Listing ini"} adalah{" "}
-              <strong>data demo</strong>, bukan penjual sungguhan.
-            </p>
           </section>
         </div>
       </div>
 
-      {/* Listing serupa */}
-      {similar.length > 0 && (
-        <section aria-labelledby="serupa-heading" className="mt-12">
-          <h2 id="serupa-heading" className="mb-4 flex items-center gap-2 font-display text-xl font-bold">
-            <TrendingUp className="h-5 w-5 text-brand" aria-hidden />
-            Akun Serupa di Kategori Ini
-          </h2>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-5">
-            {similar.map((l) => (
-              <ProductCard key={l.id} listing={l} />
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
@@ -339,133 +346,3 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-/* ── Tampilan listing buatan pengguna (demo) ───────────────────── */
-
-function UserProductView({ listing }: { listing: UserListing }) {
-  const fee = serviceFee(listing.price);
-  const canBuy = listing.status === "tayang";
-
-  return (
-    <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-10">
-      <div className="rounded-2xl border border-amber-400/25 bg-amber-400/5 p-4 text-sm text-amber-200">
-        Ini adalah listing buatanmu sendiri (data demo tersimpan di browser). Listing
-        yang belum berstatus <strong>Tayang</strong> belum bisa dibeli orang lain.
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
-        <div>
-          <div className="relative aspect-[4/3] overflow-hidden rounded-2xl glass">
-            {listing.imagePreviews[0] ? (
-               
-              <img
-                src={listing.imagePreviews[0]}
-                alt={`Gambar akun: ${listing.title}`}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-muted-foreground">
-                <Gamepad2 className="h-10 w-10" aria-hidden />
-              </div>
-            )}
-          </div>
-          {listing.imagePreviews.length > 1 && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              +{listing.imagePreviews.length - 1} gambar lain (pratinjau lokal)
-            </p>
-          )}
-
-          <section className="mt-6 rounded-2xl glass liquid-sheen p-5 md:p-6">
-            <h2 className="font-display text-lg font-bold">Deskripsi Akun</h2>
-            <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-              {listing.description}
-            </p>
-          </section>
-
-          <section className="mt-4 rounded-2xl glass liquid-sheen p-5 md:p-6">
-            <h2 className="font-display text-lg font-bold">Informasi Game &amp; Item</h2>
-            <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
-              <InfoRow label="Game" value={gameName(listing.game)} />
-              {listing.level && <InfoRow label="Level" value={listing.level} />}
-              {listing.rank && <InfoRow label="Rank / Tier" value={listing.rank} />}
-              {listing.server && <InfoRow label="Server" value={listing.server} />}
-              {listing.skinCount !== undefined && <InfoRow label="Jumlah skin" value={`${listing.skinCount} skin`} />}
-              {listing.heroCount !== undefined && <InfoRow label="Jumlah hero" value={`${listing.heroCount} hero`} />}
-            </dl>
-            {listing.highlights.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {listing.highlights.map((h) => (
-                  <span key={h} className="rounded-full glass-red px-3 py-1.5 text-xs font-medium text-white">
-                    {h}
-                  </span>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <div className="lg:sticky lg:top-24 lg:self-start">
-          <section className="rounded-2xl glass-strong liquid-sheen p-5 md:p-6">
-            <h1 className="font-display text-xl font-bold leading-snug md:text-2xl">
-              {listing.title}
-            </h1>
-            <p className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">
-              {formatRupiah(listing.price)}
-            </p>
-
-            <div className="mt-5 rounded-xl bg-white/5 p-4 ring-1 ring-inset ring-white/10">
-              <h2 className="text-sm font-bold">Ringkasan Pesanan</h2>
-              <dl className="mt-3 space-y-2 text-sm">
-                <div className="flex justify-between text-muted-foreground">
-                  <dt>Harga akun</dt>
-                  <dd className="text-foreground">{formatRupiah(listing.price)}</dd>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <dt>Biaya layanan (2,5%)</dt>
-                  <dd className="text-foreground">{formatRupiah(fee)}</dd>
-                </div>
-                <div className="flex justify-between border-t border-white/10 pt-2 font-semibold">
-                  <dt>Total bayar</dt>
-                  <dd className="font-display text-brand">{formatRupiah(listing.price + fee)}</dd>
-                </div>
-              </dl>
-            </div>
-
-            <div className="mt-5 flex gap-3">
-              {canBuy ? (
-                <Link
-                  href={`/checkout/${listing.id}`}
-                  className="inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-brand text-sm font-bold text-white transition-all hover:bg-brand-strong active:scale-[0.98] glow-red"
-                >
-                  Beli Sekarang
-                </Link>
-              ) : (
-                <div
-                  aria-disabled
-                  className="inline-flex h-12 flex-1 cursor-not-allowed items-center justify-center rounded-xl bg-white/5 text-sm font-bold text-muted-foreground ring-1 ring-inset ring-white/10"
-                >
-                  Belum Tayang
-                </div>
-              )}
-            </div>
-
-            {!canBuy && (
-              <p className="mt-3 flex items-start gap-1.5 text-[11px] text-muted-foreground">
-                <Lock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                Checkout hanya tersedia untuk listing berstatus “Tayang”. Ajukan
-                listing ini melalui halaman Jual Akun atau tunggu review admin (demo).
-              </p>
-            )}
-          </section>
-
-          <section className="mt-4 rounded-2xl glass liquid-sheen p-5">
-            <h2 className="font-display text-base font-bold">Penjual</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Kamu (pemilik listing ini). Pada produksi, profil penjual diverifikasi
-              melalui backend sebelum listing tayang.
-            </p>
-          </section>
-        </div>
-      </div>
-    </div>
-  );
-}

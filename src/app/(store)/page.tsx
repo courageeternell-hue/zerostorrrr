@@ -11,22 +11,14 @@ import {
 } from "lucide-react";
 import { SearchBar } from "@/components/store/search-bar";
 import { CategoryCard } from "@/components/store/category-card";
-import { ProductCard } from "@/components/store/product-card";
+import { HomeListings } from "@/components/store/home-listings";
 import { SectionHeading } from "@/components/store/section-heading";
 import { GAME_CATEGORIES } from "@/lib/games";
-import {
-  bestValueListings,
-  DEMO_LISTINGS,
-  featuredListings,
-  newestListings,
-} from "@/lib/listings";
+import { OpeningScreen } from "@/components/store/opening-screen";
+
 
 export default function HomePage() {
-  const featured = featuredListings(8);
-  const newest = newestListings(8);
-  const bestValue = bestValueListings(4);
-
-  const advantages = [
+const advantages = [
     {
       icon: ShieldCheck,
       title: "Transaksi Terlindungi",
@@ -58,7 +50,9 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="animate-fade-up">
+    <>
+      <OpeningScreen />
+      <div className="animate-fade-up">
       {/* ── Hero ─────────────────────────────────────────── */}
       <section className="relative isolate overflow-hidden">
         <div aria-hidden className="absolute inset-0 -z-10">
@@ -113,7 +107,7 @@ export default function HomePage() {
 
             <dl className="mt-8 flex flex-wrap gap-x-8 gap-y-3">
               {[
-                { value: `${DEMO_LISTINGS.length}+`, label: "Listing demo tersedia" },
+                { value: "Live", label: "Listing tayang" },
                 { value: `${GAME_CATEGORIES.length}`, label: "Kategori game populer" },
                 { value: "2.5%", label: "Biaya layanan*" },
               ].map((stat) => (
@@ -148,26 +142,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── Akun unggulan ────────────────────────────────── */}
-        <section aria-labelledby="unggulan-heading" className="mt-12 md:mt-16">
-          <SectionHeading
-            id="unggulan-heading"
-            icon={Sparkles}
-            title="Akun Unggulan"
-            subtitle="Kurasi akun dengan koleksi dan reputasi penjual terbaik"
-            actionHref="/katalog?sort=populer"
-          />
-          <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:snap-none md:grid-cols-4 md:gap-5 md:px-0">
-            {featured.map((listing, i) => (
-              <div
-                key={listing.id}
-                className="w-[240px] shrink-0 snap-start sm:w-[280px] md:w-auto"
-              >
-                <ProductCard listing={listing} priority={i < 2} />
-              </div>
-            ))}
-          </div>
-        </section>
+        <HomeListings />
 
         {/* ── Banner jual akun ─────────────────────────────── */}
         <section aria-labelledby="jual-banner-heading" className="mt-12 md:mt-16">
@@ -208,38 +183,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── Akun terbaru ─────────────────────────────────── */}
-        <section aria-labelledby="terbaru-heading" className="mt-12 md:mt-16">
-          <SectionHeading
-            id="terbaru-heading"
-            icon={Zap}
-            title="Baru Dipasang"
-            subtitle="Listing paling segar dari para penjual"
-            actionHref="/katalog?sort=terbaru"
-          />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5 xl:grid-cols-4">
-            {newest.map((listing) => (
-              <ProductCard key={listing.id} listing={listing} />
-            ))}
-          </div>
-        </section>
-
-        {/* ── Harga terbaik ────────────────────────────────── */}
-        <section aria-labelledby="harga-heading" className="mt-12 md:mt-16">
-          <SectionHeading
-            id="harga-heading"
-            icon={TrendingDown}
-            title="Harga Terbaik"
-            subtitle="Harga paling bersaing di kelasnya untuk tiap kategori"
-            actionHref="/katalog?sort=termurah"
-          />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-5">
-            {bestValue.map((listing) => (
-              <ProductCard key={listing.id} listing={listing} />
-            ))}
-          </div>
-        </section>
-
         {/* ── Keunggulan ───────────────────────────────────── */}
         <section aria-labelledby="keunggulan-heading" className="mt-12 md:mt-16">
           <SectionHeading
@@ -274,5 +217,6 @@ export default function HomePage() {
         </section>
       </div>
     </div>
+    </>
   );
 }

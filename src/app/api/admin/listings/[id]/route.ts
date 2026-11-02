@@ -16,6 +16,14 @@ export async function PATCH(request: NextRequest, { params }: Context) {
   }
 
   const { id } = await params;
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json(
+      { error: "ID listing tidak valid." },
+      { status: 400 }
+    );
+  }
+
   let body: { status?: string; rejection_reason?: string | null };
 
   try {
@@ -29,6 +37,18 @@ export async function PATCH(request: NextRequest, { params }: Context) {
   if (!allowedStatuses.includes(body.status ?? "")) {
     return NextResponse.json(
       { error: "Status listing tidak valid." },
+      { status: 400 }
+    );
+  }
+
+  if (
+    body.rejection_reason !== undefined &&
+    body.rejection_reason !== null &&
+    (typeof body.rejection_reason !== "string" ||
+      body.rejection_reason.length > 500)
+  ) {
+    return NextResponse.json(
+      { error: "Alasan penolakan maksimal 500 karakter." },
       { status: 400 }
     );
   }
@@ -66,6 +86,13 @@ export async function DELETE(_request: NextRequest, { params }: Context) {
   }
 
   const { id } = await params;
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json(
+      { error: "ID listing tidak valid." },
+      { status: 400 }
+    );
+  }
 
   const { data: listing, error: readError } = await auth.supabase
     .from("listings")
