@@ -81,8 +81,15 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const currentEta = current.maintenance_eta
+    ? new Date(current.maintenance_eta).getTime()
+    : 0;
+
   const startingMaintenance =
-    body.maintenance_enabled && !current.maintenance_enabled;
+    body.maintenance_enabled &&
+    (!current.maintenance_enabled ||
+      !Number.isFinite(currentEta) ||
+      currentEta <= Date.now());
 
   const maintenanceEta = !body.maintenance_enabled
     ? null
