@@ -4,6 +4,7 @@ import { LayoutGrid } from "lucide-react";
 import { CategoryCard } from "@/components/store/category-card";
 import { SectionHeading } from "@/components/store/section-heading";
 import { GAME_CATEGORIES } from "@/lib/games";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "Kategori Game",
@@ -11,7 +12,20 @@ export const metadata: Metadata = {
     "Telusuri akun game berdasarkan kategori: Free Fire, Mobile Legends, PUBG Mobile, Roblox, Genshin Impact, dan game lainnya.",
 };
 
-export default function CategoryIndexPage() {
+export default async function CategoryIndexPage() {
+  const supabase = await createClient();
+  const { data: activeCategories, error } = await supabase
+    .from("game_categories")
+    .select("slug")
+    .eq("active", true);
+
+  const activeSlugs = new Set(
+    (error ? [] : activeCategories ?? []).map((category) => category.slug)
+  );
+  const visibleCategories = GAME_CATEGORIES.filter((game) =>
+    activeSlugs.has(game.slug)
+  );
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
       <SectionHeading
@@ -21,7 +35,7 @@ export default function CategoryIndexPage() {
         subtitle="Setiap kategori memiliki kurasi akun dan filter harga tersendiri"
       />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-5 lg:grid-cols-3">
-        {GAME_CATEGORIES.map((game) => (
+        {visibleCategories.map((game) => (
           <CategoryCard key={game.slug} game={game} />
         ))}
       </div>

@@ -7,10 +7,29 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const supabase = await createClient();
 
+  const { data: activeCategories, error: categoryError } = await supabase
+    .from("game_categories")
+    .select("slug")
+    .eq("active", true);
+
+  if (categoryError) {
+    return NextResponse.json(
+      { error: "Gagal mengambil kategori aktif." },
+      { status: 500 }
+    );
+  }
+
+  const activeSlugs = (activeCategories ?? []).map((category) => category.slug);
+
+  if (activeSlugs.length === 0) {
+    return NextResponse.json({ listings: [] });
+  }
+
   const { data, error } = await supabase
     .from("listings")
     .select("*")
     .eq("status", "tayang")
+    .in("game", activeSlugs)
     .order("created_at", { ascending: false });
 
   if (error) {

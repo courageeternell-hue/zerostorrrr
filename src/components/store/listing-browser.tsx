@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PackageSearch } from "lucide-react";
 import { ProductCard } from "@/components/store/product-card";
 import { EmptyState } from "@/components/store/empty-state";
@@ -41,6 +41,37 @@ export function ListingBrowser({
   const [sort, setSort] = useState<SortOption>(initialSort);
   const [game, setGame] = useState<GameSlug | "semua">("semua");
   const [maxPrice, setMaxPrice] = useState<string>("");
+  const [activeCategories, setActiveCategories] = useState<typeof GAME_CATEGORIES>([]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadCategories() {
+      try {
+        const response = await fetch("/api/public/categories", { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error ?? "Gagal mengambil kategori.");
+
+        if (mounted) {
+          const activeSlugs = new Set<string>(
+            (payload.categories ?? []).map((category: { slug: string }) => category.slug)
+          );
+          setActiveCategories(GAME_CATEGORIES.filter((item) => activeSlugs.has(item.slug)));
+        }
+      } catch {
+        if (mounted) setActiveCategories([]);
+      }
+    }
+
+    void loadCategories();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (game !== "semua" && !activeCategories.some((item) => item.slug === game)) {
+      setGame("semua");
+    }
+  }, [activeCategories, game]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -115,7 +146,7 @@ export function ListingBrowser({
             <FilterChip active={game === "semua"} onClick={() => setGame("semua")}>
               Semua Game
             </FilterChip>
-            {GAME_CATEGORIES.map((g) => (
+            {activeCategories.map((g) => (
               <FilterChip
                 key={g.slug}
                 active={game === g.slug}

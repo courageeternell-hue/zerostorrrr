@@ -14,10 +14,23 @@ import { CategoryCard } from "@/components/store/category-card";
 import { HomeListings } from "@/components/store/home-listings";
 import { SectionHeading } from "@/components/store/section-heading";
 import { GAME_CATEGORIES } from "@/lib/games";
+import { createClient } from "@/lib/supabase/server";
 import { OpeningScreen } from "@/components/store/opening-screen";
 
 
-export default function HomePage() {
+export default async function HomePage() {
+  const supabase = await createClient();
+  const { data: activeCategories, error: categoryError } = await supabase
+    .from("game_categories")
+    .select("slug")
+    .eq("active", true);
+
+  const activeSlugs = new Set(
+    (categoryError ? [] : activeCategories ?? []).map((category) => category.slug)
+  );
+  const visibleCategories = GAME_CATEGORIES.filter((game) =>
+    activeSlugs.has(game.slug)
+  );
 const advantages = [
     {
       icon: ShieldCheck,
@@ -108,7 +121,7 @@ const advantages = [
             <dl className="mt-8 flex flex-wrap gap-x-8 gap-y-3">
               {[
                 { value: "Live", label: "Listing tayang" },
-                { value: `${GAME_CATEGORIES.length}`, label: "Kategori game populer" },
+                { value: `${visibleCategories.length}`, label: "Kategori game populer" },
                 { value: "2.5%", label: "Biaya layanan*" },
               ].map((stat) => (
                 <div key={stat.label}>
@@ -136,7 +149,7 @@ const advantages = [
             actionLabel="Semua kategori"
           />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-5 lg:grid-cols-6">
-            {GAME_CATEGORIES.map((game) => (
+            {visibleCategories.map((game) => (
               <CategoryCard key={game.slug} game={game} />
             ))}
           </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { GAME_CATEGORIES } from "@/lib/games";
+import { createClient } from "@/lib/supabase/server";
 
 const exploreLinks = [
   { href: "/katalog", label: "Semua Listing" },
@@ -22,7 +23,20 @@ const accountLinks = [
   { href: "/admin", label: "Zero Store V5)" },
 ];
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const supabase = await createClient();
+  const { data: activeCategories, error } = await supabase
+    .from("game_categories")
+    .select("slug")
+    .eq("active", true);
+
+  const activeSlugs = new Set(
+    (error ? [] : activeCategories ?? []).map((category) => category.slug)
+  );
+  const visibleCategories = GAME_CATEGORIES.filter((game) =>
+    activeSlugs.has(game.slug)
+  );
+
   return (
     <footer className="mt-auto border-t border-white/5 bg-surface/60">
       <div className="mx-auto max-w-7xl px-4 py-10 md:px-6 md:py-14">
@@ -98,7 +112,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-10 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/5 pt-6">
-          {GAME_CATEGORIES.map((g) => (
+          {visibleCategories.map((g) => (
             <Link
               key={g.slug}
               href={`/kategori/${g.slug}`}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -86,6 +86,37 @@ const MAX_SIZE_MB = 2;
 export function SellForm() {
   const router = useRouter();
   const [images, setImages] = useState<string[]>([]);
+  const [activeCategories, setActiveCategories] = useState<typeof GAME_CATEGORIES>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadCategories() {
+      try {
+        const response = await fetch("/api/public/categories", { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error ?? "Gagal mengambil kategori.");
+
+        if (mounted) {
+          const activeSlugs = new Set<string>(
+            (payload.categories ?? []).map((category: { slug: string }) => category.slug)
+          );
+          setActiveCategories(GAME_CATEGORIES.filter((game) => activeSlugs.has(game.slug)));
+        }
+      } catch (error) {
+        if (mounted) {
+          setActiveCategories([]);
+          toast.error(error instanceof Error ? error.message : "Gagal mengambil kategori.");
+        }
+      } finally {
+        if (mounted) setCategoriesLoading(false);
+      }
+    }
+
+    void loadCategories();
+    return () => { mounted = false; };
+  }, []);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageError, setImageError] = useState<string | null>(null);
   const [confirmOwnership, setConfirmOwnership] = useState(false);
@@ -370,11 +401,11 @@ export function SellForm() {
               value={gameValue ?? undefined}
               onValueChange={(v) => setValue("game", v as ListingForm["game"], { shouldValidate: true })}
             >
-              <SelectTrigger id="sf-game" aria-invalid={!!errors.game} className="h-11 w-full bg-white/5 ring-white/10">
-                <SelectValue placeholder="Pilih kategori game" />
+              <SelectTrigger id="sf-game" disabled={categoriesLoading || activeCategories.length === 0} aria-invalid={!!errors.game} className="h-11 w-full bg-white/5 ring-white/10">
+                <SelectValue placeholder={categoriesLoading ? "Memuat kategori..." : "Pilih kategori game"} />
               </SelectTrigger>
               <SelectContent>
-                {GAME_CATEGORIES.map((g) => (
+                {activeCategories.map((g) => (
                   <SelectItem key={g.slug} value={g.slug}>
                     {g.name}
                   </SelectItem>

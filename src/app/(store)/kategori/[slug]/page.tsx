@@ -7,10 +7,13 @@ import { ListingBrowser } from "@/components/store/listing-browser";
 import { GAME_CATEGORIES, getGame } from "@/lib/games";
 import { searchListings } from "@/lib/listings";
 import type { GameSlug } from "@/lib/types";
+import { createClient } from "@/lib/supabase/server";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
+
+export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
   return GAME_CATEGORIES.map((g) => ({ slug: g.slug }));
@@ -30,6 +33,28 @@ export default async function CategoryPage({ params }: PageProps) {
   const { slug } = await params;
   const game = getGame(slug);
   if (!game) notFound();
+
+  const supabase = await createClient();
+  const { data: category } = await supabase
+    .from("game_categories")
+    .select("active")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (!category?.active) notFound();
+
+  const { data: activeCategories } = await supabase
+    .from("game_categories")
+    .select("slug")
+    .eq("active", true);
+
+  const activeSlugs = new Set(
+    (activeCategories ?? []).map((category) => category.slug)
+  );
+
+  const visibleCategories = GAME_CATEGORIES.filter(
+    (item) => item.slug !== game.slug && activeSlugs.has(item.slug)
+  );
 
   const listings = searchListings({ game: slug as GameSlug, includeSold: true });
 
@@ -76,7 +101,7 @@ export default async function CategoryPage({ params }: PageProps) {
       <nav aria-label="Kategori lainnya" className="mt-10">
         <h2 className="font-display text-lg font-bold">Kategori lainnya</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          {GAME_CATEGORIES.filter((g) => g.slug !== game.slug).map((g) => (
+          {visibleCategories.map((g) => (
             <Link
               key={g.slug}
               href={`/kategori/${g.slug}`}
