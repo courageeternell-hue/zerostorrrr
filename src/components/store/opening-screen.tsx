@@ -3,15 +3,31 @@
 import { useEffect, useState } from "react";
 
 export function OpeningScreen() {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(false);
+  const [ready, setReady] = useState(false);
   const [entering, setEntering] = useState(false);
   const [hidden, setHidden] = useState(false);
 
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("zero-store-entered") !== "true") {
+        setVisible(true);
+      } else {
+        setHidden(true);
+      }
+    } catch {
+      setVisible(true);
+    }
+    setReady(true);
+  }, []);
 
   function enterStore() {
     if (entering) return;
 
     setEntering(true);
+    try {
+      sessionStorage.setItem("zero-store-entered", "true");
+    } catch {}
 
     window.setTimeout(() => {
       setVisible(false);
@@ -22,7 +38,7 @@ export function OpeningScreen() {
     }, 1900);
   }
 
-  if (hidden) return null;
+  if (!ready || hidden) return null;
 
   return (
     <>
