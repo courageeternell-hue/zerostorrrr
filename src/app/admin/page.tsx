@@ -231,9 +231,82 @@ export default function AdminPage() {
     }
   }
 
-  const [categoryState, setCategoryState] = useState(() =>
-    Object.fromEntries(GAME_CATEGORIES.map((g) => [g.slug, g.active])),
+  const [categoryState, setCategoryState] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(GAME_CATEGORIES.map((g) => [g.slug, g.active]))
   );
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [savingCategory, setSavingCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCategories() {
+      try {
+        const response = await fetch("/api/admin/categories", {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Gagal mengambil kategori.");
+        }
+
+        if (active) {
+          setCategoryState(
+            Object.fromEntries(
+              (payload.categories ?? []).map(
+                (category: { slug: string; active: boolean }) => [
+                  category.slug,
+                  category.active,
+                ]
+              )
+            )
+          );
+        }
+      } catch (error) {
+        if (active) {
+          toast.error(
+            error instanceof Error ? error.message : "Gagal mengambil kategori."
+          );
+        }
+      } finally {
+        if (active) setCategoriesLoading(false);
+      }
+    }
+
+    void loadCategories();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function updateCategory(slug: string, active: boolean, name: string) {
+    const previous = categoryState[slug];
+    setCategoryState((current) => ({ ...current, [slug]: active }));
+    setSavingCategory(slug);
+
+    try {
+      const response = await fetch("/api/admin/categories", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, active }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Gagal menyimpan kategori.");
+      }
+
+      toast.success(`Kategori ${name} ${active ? "diaktifkan" : "dinonaktifkan"}.`);
+    } catch (error) {
+      setCategoryState((current) => ({ ...current, [slug]: previous }));
+      toast.error(
+        error instanceof Error ? error.message : "Gagal menyimpan kategori."
+      );
+    } finally {
+      setSavingCategory(null);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -491,12 +564,10 @@ export default function AdminPage() {
                       <p className="text-xs text-muted-foreground">{g.tagline}</p>
                     </div>
                     <Switch
-                      checked={categoryState[g.slug]}
+                      checked={categoryState[g.slug] ?? false}
+                      disabled={categoriesLoading || savingCategory === g.slug}
                       onCheckedChange={(v) => {
-                        setCategoryState((s) => ({ ...s, [g.slug]: v }));
-                        toast.success(
-                          `Kategori ${g.name} ${v ? "diaktifkan" : "dinonaktifkan"} (lokal — belum persisten)`,
-                        );
+                        void updateCategory(g.slug, v, g.name);
                       }}
                       aria-label={`Aktifkan kategori ${g.name}`}
                     />
