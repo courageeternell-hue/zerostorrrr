@@ -27,6 +27,11 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -117,6 +122,9 @@ export default function AdminPage() {
   const [sellers, setSellers] = useState<AdminSeller[]>([]);
   const [sellersLoading, setSellersLoading] = useState(true);
   const [sellersError, setSellersError] = useState<string | null>(null);
+  const [selectedSeller, setSelectedSeller] = useState<AdminSeller | null>(null);
+  const [sellerReason, setSellerReason] = useState("");
+  const [savingSeller, setSavingSeller] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -169,6 +177,57 @@ export default function AdminPage() {
       toast.error(error instanceof Error ? error.message : "Gagal memperbarui listing.");
     } finally {
       setUpdatingListingId(null);
+    }
+  }
+
+  async function updateSeller(payload: {
+    verified?: boolean;
+    suspended?: boolean;
+    suspensionReason?: string | null;
+  }) {
+    if (!selectedSeller) return;
+
+    setSavingSeller(true);
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: selectedSeller.id, ...payload }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error ?? "Gagal memperbarui penjual.");
+      }
+
+      setSellers((current) =>
+        current.map((seller) =>
+          seller.id === selectedSeller.id
+            ? {
+                ...seller,
+                verified: result.moderation.verified,
+                suspended: result.moderation.suspended,
+                suspensionReason: result.moderation.suspension_reason,
+              }
+            : seller
+        )
+      );
+
+      setSelectedSeller((current) =>
+        current
+          ? {
+              ...current,
+              verified: result.moderation.verified,
+              suspended: result.moderation.suspended,
+              suspensionReason: result.moderation.suspension_reason,
+            }
+          : current
+      );
+
+      toast.success("Status penjual berhasil diperbarui.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal memperbarui penjual.");
+    } finally {
+      setSavingSeller(false);
     }
   }
 
@@ -567,7 +626,10 @@ export default function AdminPage() {
                         <td className="px-4 py-3 text-right">
                           <button
                             type="button"
-                            onClick={() => toast.info("Manajemen pengguna membutuhkan backend", { description: "Suspensi/verifikasi pengguna harus dieksekusi server dengan otorisasi admin." })}
+                            onClick={() => {
+                              setSellerReason(s.suspensionReason ?? "");
+                              setSelectedSeller(s);
+                            }}
                             className="inline-flex h-8 items-center rounded-lg bg-white/5 px-3 text-xs font-medium ring-1 ring-inset ring-white/10 transition-colors hover:text-brand"
                           >
                             Kelola
@@ -578,6 +640,71 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+
+              <Dialog
+                open={Boolean(selectedSeller)}
+                onOpenChange={(open) => {
+                  if (!open && !savingSeller) setSelectedSeller(null);
+                }}
+              >
+                <DialogContent className="border-white/10 bg-[#111116] text-white">
+                  <DialogHeader>
+                    <DialogTitle>Kelola Penjual</DialogTitle>
+                    <DialogDescription className="text-muted-foreground">
+                      {selectedSeller?.name} · ID {selectedSeller?.id}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Jumlah listing</span>
+                      <strong>{selectedSeller?.totalListings ?? 0}</strong>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Rating</span>
+                      <strong>Belum tersedia</strong>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Status akun</span>
+                      <strong>{selectedSeller?.suspended ? "Ditangguhkan" : "Aktif"}</strong>
+                    </div>
+                  </div>
+
+                  <label className="text-sm font-medium" htmlFor="seller-reason">
+                    Alasan suspensi
+                  </label>
+                  <Textarea
+                    id="seller-reason"
+                    value={sellerReason}
+                    onChange={(event) => setSellerReason(event.target.value)}
+                    placeholder="Isi alasan jika akun akan ditangguhkan..."
+                    disabled={savingSeller}
+                    className="border-white/10 bg-white/5"
+                  />
+
+                  <DialogFooter className="flex-col gap-2 sm:flex-col">
+                    <button
+                      type="button"
+                      disabled={savingSeller}
+                      onClick={() => updateSeller({ verified: !selectedSeller?.verified })}
+                      className="h-10 w-full rounded-lg bg-white/10 px-4 text-sm font-semibold hover:bg-white/15 disabled:opacity-50"
+                    >
+                      {savingSeller ? "Menyimpan..." : selectedSeller?.verified ? "Batalkan Verifikasi" : "Verifikasi Penjual"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={savingSeller || (!selectedSeller?.suspended && !sellerReason.trim())}
+                      onClick={() => updateSeller({
+                        suspended: !selectedSeller?.suspended,
+                        suspensionReason: selectedSeller?.suspended ? null : sellerReason.trim(),
+                      })}
+                      className="h-10 w-full rounded-lg bg-red-600 px-4 text-sm font-semibold hover:bg-red-500 disabled:opacity-50"
+                    >
+                      {savingSeller ? "Menyimpan..." : selectedSeller?.suspended ? "Aktifkan Kembali" : "Suspend Penjual"}
+                    </button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </section>
           )}
 
