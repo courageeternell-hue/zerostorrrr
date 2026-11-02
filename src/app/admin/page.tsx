@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -40,13 +40,23 @@ import {
 import { EmptyState } from "@/components/store/empty-state";
 import { OrderStatusBadge, UserListingStatusBadge, DemoBadge } from "@/components/store/badges";
 import { GAME_CATEGORIES } from "@/lib/games";
-import { DEMO_LISTINGS, searchListings } from "@/lib/listings";
-import { useUserListings } from "@/lib/store/user-listings";
+import { DEMO_LISTINGS } from "@/lib/listings";
+import type { GameSlug, UserListingStatus } from "@/lib/types";
 import { useOrders } from "@/lib/store/orders";
 import { useMounted } from "@/hooks/use-mounted";
 import { formatCompact, formatDateID, formatRupiah, initials } from "@/lib/format";
 import { gameName } from "@/lib/games";
 import { cn } from "@/lib/utils";
+
+type AdminListing = {
+  id: string;
+  game: GameSlug;
+  title: string;
+  price: number;
+  status: UserListingStatus | "terjual";
+  created_at: string;
+  rejection_reason?: string | null;
+};
 
 type Section =
   | "ringkasan"
@@ -89,17 +99,73 @@ const DEMO_ORDERS_PER_DAY = [
 export default function AdminPage() {
   const mounted = useMounted();
   const [section, setSection] = useState<Section>("ringkasan");
-  const userListings = useUserListings((s) => s.listings);
-  const updateUserStatus = useUserListings((s) => s.updateStatus);
   const orders = useOrders((s) => s.orders);
+  const [adminListings, setAdminListings] = useState<AdminListing[]>([]);
+  const [adminListingsLoading, setAdminListingsLoading] = useState(true);
+  const [adminListingsError, setAdminListingsError] = useState<string | null>(null);
+  const [updatingListingId, setUpdatingListingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadListings() {
+      try {
+        const response = await fetch("/api/admin/listings", { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error ?? "Gagal mengambil listing.");
+        if (active) setAdminListings(payload.listings ?? []);
+      } catch (error) {
+        if (active) setAdminListingsError(
+          error instanceof Error ? error.message : "Gagal mengambil listing.",
+        );
+      } finally {
+        if (active) setAdminListingsLoading(false);
+      }
+    }
+
+    void loadListings();
+    return () => { active = false; };
+  }, []);
+
+  async function updateAdminListingStatus(
+    id: string,
+    status: UserListingStatus | "terjual",
+  ) {
+    setUpdatingListingId(id);
+    try {
+      const response = await fetch(
+        `/api/admin/listings/${encodeURIComponent(id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        },
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "Gagal memperbarui listing.");
+
+      setAdminListings((current) =>
+        current.map((item) => item.id === id ? payload.listing : item),
+      );
+      toast.success(
+        status === "tayang" ? "Listing berhasil ditayangkan."
+        : status === "ditolak" ? "Pengajuan berhasil ditolak."
+        : "Status listing berhasil diperbarui.",
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal memperbarui listing.");
+    } finally {
+      setUpdatingListingId(null);
+    }
+  }
 
   const [categoryState, setCategoryState] = useState(() =>
     Object.fromEntries(GAME_CATEGORIES.map((g) => [g.slug, g.active])),
   );
 
   const pending = useMemo(
-    () => userListings.filter((l) => l.status === "menunggu_review"),
-    [userListings],
+    () => adminListings.filter((l) => l.status === "menunggu_review"),
+    [adminListings],
   );
 
   const sellers = useMemo(() => {
@@ -108,7 +174,6 @@ export default function AdminPage() {
     return Array.from(map.values());
   }, []);
 
-  const allListings = searchListings({ includeSold: true, sort: "terbaru" });
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
 
   if (!mounted) {
@@ -150,8 +215,8 @@ export default function AdminPage() {
             <section aria-label="Ringkasan">
               <AdminHeading title="Ringkasan" subtitle="Gambaran singkat kondisi marketplace" />
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
-                <StatCard label="Total Listing" value={String(allListings.length + userListings.length)} icon={ListOrdered} note="Demo + lokal" />
-                <StatCard label="Tersedia" value={String(allListings.filter((l) => l.status === "tersedia").length)} icon={BadgeCheck} note="Siap dibeli" />
+                <StatCard label="Total Listing" value={String(adminListings.length)} icon={ListOrdered} note="Database" />
+                <StatCard label="Tersedia" value={String(adminListings.filter((l) => l.status === "tayang").length)} icon={BadgeCheck} note="Listing tayang" />
                 <StatCard label="Menunggu Review" value={String(pending.length)} icon={FileClock} note="Pengajuan penjual" />
                 <StatCard label="Nilai Pesanan Lokal" value={formatRupiah(totalRevenue)} icon={ShoppingBag} note={`${orders.length} pesanan browser`} />
               </div>
@@ -184,7 +249,7 @@ export default function AdminPage() {
             <section aria-label="Kelola listing">
               <AdminHeading
                 title="Kelola Listing"
-                subtitle="Semua listing di katalog. Aksi server belum aktif (demo)."
+                subtitle="Kelola status listing melalui backend."
               />
               <div className="overflow-x-auto rounded-2xl glass scrollbar-dark">
                 <table className="w-full min-w-[640px] text-sm">
@@ -193,12 +258,17 @@ export default function AdminPage() {
                       <th className="px-4 py-3 font-medium">Listing</th>
                       <th className="px-4 py-3 font-medium">Harga</th>
                       <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium">Dilihat</th>
                       <th className="px-4 py-3 font-medium text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {allListings.map((l) => (
+                    {adminListingsLoading ? (
+                      <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Memuat listing...</td></tr>
+                    ) : adminListingsError ? (
+                      <tr><td colSpan={4} className="px-4 py-8 text-center text-red-300">{adminListingsError}</td></tr>
+                    ) : adminListings.length === 0 ? (
+                      <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Belum ada listing di database.</td></tr>
+                    ) : adminListings.map((l) => (
                       <tr key={l.id} className="border-b border-white/5 last:border-0">
                         <td className="max-w-[280px] px-4 py-3">
                           <p className="line-clamp-1 font-medium">{l.title}</p>
@@ -206,27 +276,25 @@ export default function AdminPage() {
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">{formatRupiah(l.price)}</td>
                         <td className="px-4 py-3">
-                          <span
-                            className={cn(
-                              "rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset",
-                              l.status === "tersedia"
-                                ? "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30"
-                                : "bg-white/10 text-muted-foreground ring-white/20",
-                            )}
-                          >
-                            {l.status === "tersedia" ? "Tersedia" : "Terjual"}
+                          <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground ring-1 ring-inset ring-white/20">
+                            {l.status === "tayang" ? "Tayang" : l.status === "menunggu_review" ? "Menunggu" : l.status === "ditolak" ? "Ditolak" : l.status === "terjual" ? "Terjual" : "Draft"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">{formatCompact(l.views)}</td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => toast.info("Aksi kelola listing membutuhkan backend", { description: "Modifikasi listing harus lewat API server dengan otorisasi admin." })}
-                            className="inline-flex h-8 items-center gap-1 rounded-lg bg-white/5 px-3 text-xs font-medium ring-1 ring-inset ring-white/10 transition-colors hover:text-brand"
-                          >
-                            Kelola
-                            <ExternalLink className="h-3 w-3" aria-hidden />
-                          </button>
+                          {l.status !== "tayang" && (
+                            <button type="button" disabled={updatingListingId === l.id}
+                              onClick={() => void updateAdminListingStatus(l.id, "tayang")}
+                              className="mr-2 inline-flex h-8 items-center rounded-lg bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-300 ring-1 ring-inset ring-emerald-400/30 disabled:opacity-50">
+                              Tayangkan
+                            </button>
+                          )}
+                          {l.status === "tayang" && (
+                            <button type="button" disabled={updatingListingId === l.id}
+                              onClick={() => void updateAdminListingStatus(l.id, "terjual")}
+                              className="inline-flex h-8 items-center rounded-lg bg-white/5 px-3 text-xs font-medium ring-1 ring-inset ring-white/10 disabled:opacity-50">
+                              Tandai Terjual
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -241,7 +309,7 @@ export default function AdminPage() {
             <section aria-label="Pengajuan produk">
               <AdminHeading
                 title="Pengajuan Listing"
-                subtitle="Setujui atau tolak listing dari penjual (aksi tersimpan lokal — demo)."
+                subtitle="Tinjau pengajuan listing yang tersimpan di database."
               />
               {pending.length === 0 ? (
                 <EmptyState
@@ -258,18 +326,13 @@ export default function AdminPage() {
                           <p className="font-semibold">{l.title}</p>
                           <p className="mt-0.5 text-xs text-muted-foreground">
                             {gameName(l.game)} · {formatRupiah(l.price)} · diajukan{" "}
-                            {formatDateID(l.createdAt)}
+                            {formatDateID(l.created_at)}
                           </p>
                         </div>
                         <div className="flex gap-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              updateUserStatus(l.id, "tayang");
-                              toast.success("Listing disetujui & tayang (lokal)", {
-                                description: "Pada produksi, aksi ini dieksekusi server dengan audit log.",
-                              });
-                            }}
+                            onClick={() => void updateAdminListingStatus(l.id, "tayang")}
                             className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-400/10 px-3.5 text-xs font-semibold text-emerald-300 ring-1 ring-inset ring-emerald-400/30 transition-colors hover:bg-emerald-400/20"
                           >
                             <CheckCircle2 className="h-4 w-4" aria-hidden />
@@ -295,10 +358,7 @@ export default function AdminPage() {
                                   Batal
                                 </AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => {
-                                    updateUserStatus(l.id, "ditolak");
-                                    toast("Pengajuan ditolak (lokal)");
-                                  }}
+                                  onClick={() => void updateAdminListingStatus(l.id, "ditolak")}
                                   className="bg-brand text-white hover:bg-brand-strong"
                                 >
                                   Tolak
