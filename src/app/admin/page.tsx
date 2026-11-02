@@ -148,7 +148,7 @@ export default function AdminPage() {
 
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState("");
-  const [maintenanceDuration, setMaintenanceDuration] = useState(60);
+  const [maintenanceDuration, setMaintenanceDuration] = useState("60");
   const [maintenanceDurationUnit, setMaintenanceDurationUnit] = useState<"detik" | "menit" | "jam">("menit");
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
   const [maintenanceSaving, setMaintenanceSaving] = useState(false);
@@ -165,9 +165,7 @@ export default function AdminPage() {
         if (active && payload.settings) {
           setMaintenanceEnabled(payload.settings.maintenance_enabled);
           setMaintenanceMessage(payload.settings.maintenance_message ?? "");
-          setMaintenanceDuration(
-            payload.settings.maintenance_duration_seconds ?? 3600
-          );
+          setMaintenanceDuration(String(payload.settings.maintenance_duration_seconds ?? 3600));
         }
       } catch (error) {
         if (active) toast.error(
@@ -191,7 +189,7 @@ export default function AdminPage() {
         body: JSON.stringify({
           maintenance_enabled: maintenanceEnabled,
           maintenance_message: maintenanceMessage,
-          maintenance_duration_seconds: maintenanceDuration * (maintenanceDurationUnit === "jam" ? 3600 : maintenanceDurationUnit === "menit" ? 60 : 1),
+          maintenance_duration_seconds: Number(maintenanceDuration) * (maintenanceDurationUnit === "jam" ? 3600 : maintenanceDurationUnit === "menit" ? 60 : 1),
         }),
       });
       const payload = await response.json();
@@ -869,9 +867,7 @@ export default function AdminPage() {
                         max={maintenanceDurationUnit === "jam" ? 168 : maintenanceDurationUnit === "menit" ? 10080 : 604800}
                         step={1}
                         value={maintenanceDuration}
-                        onChange={(event) =>
-                          setMaintenanceDuration(Number(event.target.value))
-                        }
+                        onChange={(event) => setMaintenanceDuration(event.target.value)}
                         className="h-12 w-32 rounded-xl border border-white/10 bg-black/30 px-4 text-white outline-none focus:border-red-500/60"
                       />
                       <select
@@ -914,9 +910,9 @@ export default function AdminPage() {
                     onClick={() => void saveMaintenanceSettings()}
                     disabled={
                       maintenanceSaving ||
-                      maintenanceDuration < 1 ||
-                      maintenanceDuration > (maintenanceDurationUnit === "jam" ? 168 : maintenanceDurationUnit === "menit" ? 10080 : 604800) ||
-                      !Number.isInteger(maintenanceDuration) ||
+                      Number(maintenanceDuration) < 1 ||
+                      Number(maintenanceDuration) > (maintenanceDurationUnit === "jam" ? 168 : maintenanceDurationUnit === "menit" ? 10080 : 604800) ||
+                      !Number.isInteger(Number(maintenanceDuration)) ||
                       !maintenanceMessage.trim()
                     }
                     className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-red-600 px-5 text-sm font-bold text-white shadow-lg shadow-red-950/30 transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
