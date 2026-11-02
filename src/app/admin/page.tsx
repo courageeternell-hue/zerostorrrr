@@ -40,7 +40,6 @@ import {
 import { EmptyState } from "@/components/store/empty-state";
 import { OrderStatusBadge, UserListingStatusBadge, DemoBadge } from "@/components/store/badges";
 import { GAME_CATEGORIES } from "@/lib/games";
-import { DEMO_LISTINGS } from "@/lib/listings";
 import type { GameSlug, UserListingStatus } from "@/lib/types";
 import { useOrders } from "@/lib/store/orders";
 import { useMounted } from "@/hooks/use-mounted";
@@ -56,6 +55,17 @@ type AdminListing = {
   status: UserListingStatus | "terjual";
   created_at: string;
   rejection_reason?: string | null;
+};
+
+type AdminSeller = {
+  id: string;
+  name: string;
+  totalListings: number;
+  verified: boolean;
+  suspended: boolean;
+  suspensionReason: string | null;
+  rating: number | null;
+  totalSales: number | null;
 };
 
 type Section =
@@ -104,6 +114,9 @@ export default function AdminPage() {
   const [adminListingsLoading, setAdminListingsLoading] = useState(true);
   const [adminListingsError, setAdminListingsError] = useState<string | null>(null);
   const [updatingListingId, setUpdatingListingId] = useState<string | null>(null);
+  const [sellers, setSellers] = useState<AdminSeller[]>([]);
+  const [sellersLoading, setSellersLoading] = useState(true);
+  const [sellersError, setSellersError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -163,16 +176,39 @@ export default function AdminPage() {
     Object.fromEntries(GAME_CATEGORIES.map((g) => [g.slug, g.active])),
   );
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadSellers() {
+      try {
+        const response = await fetch("/api/admin/users", { cache: "no-store" });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Gagal mengambil data penjual.");
+        }
+
+        if (active) setSellers(payload.sellers ?? []);
+      } catch (error) {
+        if (active) {
+          setSellersError(
+            error instanceof Error ? error.message : "Gagal mengambil data penjual."
+          );
+        }
+      } finally {
+        if (active) setSellersLoading(false);
+      }
+    }
+
+    void loadSellers();
+    return () => { active = false; };
+  }, []);
+
   const pending = useMemo(
     () => adminListings.filter((l) => l.status === "menunggu_review"),
     [adminListings],
   );
 
-  const sellers = useMemo(() => {
-    const map = new Map<string, typeof DEMO_LISTINGS[number]["seller"]>();
-    for (const l of DEMO_LISTINGS) map.set(l.seller.id, l.seller);
-    return Array.from(map.values());
-  }, []);
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
 
@@ -477,7 +513,7 @@ export default function AdminPage() {
             <section aria-label="Kelola pengguna">
               <AdminHeading
                 title="Pengguna"
-                subtitle="Reputasi penjual terdaftar pada data demo."
+                subtitle="Data penjual dan status akun dari database."
               />
               <div className="overflow-x-auto rounded-2xl glass scrollbar-dark">
                 <table className="w-full min-w-[620px] text-sm">
@@ -491,7 +527,13 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sellers.map((s) => (
+                    {sellersLoading ? (
+                      <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Memuat data penjual…</td></tr>
+                    ) : sellersError ? (
+                      <tr><td colSpan={5} className="px-4 py-8 text-center text-red-300">{sellersError}</td></tr>
+                    ) : sellers.length === 0 ? (
+                      <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Belum ada penjual terdaftar.</td></tr>
+                    ) : sellers.map((s) => (
                       <tr key={s.id} className="border-b border-white/5 last:border-0">
                         <td className="px-4 py-3">
                           <span className="flex items-center gap-2.5">
@@ -504,13 +546,13 @@ export default function AdminPage() {
                             <span>
                               <span className="block font-medium">{s.name}</span>
                               <span className="block text-xs text-muted-foreground">
-                                Sejak {formatDateID(s.joinedAt)}
+                                ID: {s.id.slice(0, 8)}
                               </span>
                             </span>
                           </span>
                         </td>
-                        <td className="px-4 py-3">{s.rating.toFixed(1)} ★</td>
-                        <td className="px-4 py-3">{s.totalSales}</td>
+                        <td className="px-4 py-3">—</td>
+                        <td className="px-4 py-3">{s.totalSales ?? "—"}</td>
                         <td className="px-4 py-3">
                           {s.verified ? (
                             <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 ring-1 ring-inset ring-emerald-400/30">
