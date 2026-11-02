@@ -28,10 +28,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GAME_CATEGORIES, gameName } from "@/lib/games";
+import { GAME_CATEGORIES } from "@/lib/games";
 import { formatRupiah } from "@/lib/format";
-import { useUserListings } from "@/lib/store/user-listings";
 import { cn } from "@/lib/utils";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 
 const MIN_PRICE = 10000;
 const MAX_PRICE = 100000000;
@@ -85,8 +85,8 @@ const MAX_SIZE_MB = 2;
 
 export function SellForm() {
   const router = useRouter();
-  const addUserListing = useUserListings((s) => s.add);
   const [images, setImages] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageError, setImageError] = useState<string | null>(null);
   const [confirmOwnership, setConfirmOwnership] = useState(false);
   const [confirmError, setConfirmError] = useState(false);
@@ -136,12 +136,51 @@ export function SellForm() {
         continue;
       }
       next.push(URL.createObjectURL(file));
+      setImageFiles((prev) => [...prev, file]);
     }
     setImages(next);
   }
 
   function removeImage(index: number) {
+    const preview = images[index];
+    if (preview) URL.revokeObjectURL(preview);
     setImages((prev) => prev.filter((_, i) => i !== index));
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function uploadListingImages() {
+    const supabase = createSupabaseClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      throw new Error("Silakan login terlebih dahulu.");
+    }
+
+    const paths: string[] = [];
+
+    for (const file of imageFiles) {
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${user.id}/${crypto.randomUUID()}.${extension}`;
+
+      const { error } = await supabase.storage
+        .from("listing-images")
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type,
+        });
+
+      if (error) {
+        if (paths.length) {
+          await supabase.storage.from("listing-images").remove(paths);
+        }
+        throw new Error(`Gagal mengunggah ${file.name}: ${error.message}`);
+      }
+
+      paths.push(path);
+    }
+
+    return paths;
   }
 
   /** Gambar hanya pratinjau sesi — upload permanen butuh backend. */
@@ -167,62 +206,140 @@ export function SellForm() {
     };
   }
 
-  function onSubmit(data: ListingOutput) {
-    // Checkbox dikonfirmasi manual (bukan bagian native form agar draft bebas).
+  async function onSubmit(data: ListingOutput) {
     if (!confirmOwnership) {
       setConfirmError(true);
       return;
     }
+
     setConfirmError(false);
-    const listing = addUserListing({
-      ...collectData(data),
-      status: "menunggu_review",
-    });
-    toast.success("Listing diajukan!", {
-      description: `“${listing.title}” kini menunggu review moderator. Status: Menunggu Review.`,
-    });
-    router.push("/profil?tab=listing");
+
+    let imagePaths: string[] = [];
+
+    try {
+      imagePaths = await uploadListingImages();
+
+      const payload = collectData(data);
+
+      const response = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          game: payload.game,
+          title: payload.title,
+          price: payload.price,
+          description: payload.description,
+          level: payload.level,
+          rank: payload.rank,
+          server: payload.server,
+          skinCount: payload.skinCount,
+          heroCount: payload.heroCount,
+          highlights: payload.highlights,
+          imagePaths,
+          status: "menunggu_review",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Gagal menyimpan listing.");
+      }
+
+      images.forEach((url) => URL.revokeObjectURL(url));
+      setImages([]);
+      setImageFiles([]);
+
+      toast.success("Listing berhasil diajukan!", {
+        description: `“${data.title}” tersimpan dan menunggu review moderator.`,
+      });
+
+      router.push("/profil?tab=listing");
+    } catch (error) {
+      if (imagePaths.length) {
+        const supabase = createSupabaseClient();
+        await supabase.storage.from("listing-images").remove(imagePaths);
+      }
+
+      toast.error("Gagal mengajukan listing", {
+        description: error instanceof Error ? error.message : "Terjadi kesalahan.",
+      });
+    }
   }
 
-  function onSaveDraft() {
-    // Draft: validasi longgar (kategori, judul, harga saja).
-    const ok = trigger(["game", "title", "price"], { shouldFocus: true });
+  async function onSaveDraft() {
+    const ok = await trigger(["game", "title", "price"], { shouldFocus: true });
+
     if (!ok) {
       toast.error("Draft belum lengkap", {
         description: "Isi kategori game, judul, dan harga terlebih dahulu.",
       });
       return;
     }
+
     const game = gameValue as (typeof GAME_CATEGORIES)[number]["slug"];
     const title = String(watch("title") ?? "").trim();
     const price = Number(watch("price")) || 0;
+
     if (!game || title.length < 3 || price < MIN_PRICE) {
       toast.error("Draft belum lengkap", {
-        description: "Kategori, judul (min. 3 huruf), dan harga (min. Rp10.000) wajib diisi.",
+        description: "Kategori, judul, dan harga minimal Rp10.000 wajib diisi.",
       });
       return;
     }
-    addUserListing({
-      game,
-      title,
-      price,
-      description: String(watch("description") ?? "") || "Draft listing — deskripsi belum dilengkapi.",
-      level: String(watch("level") ?? "") || undefined,
-      rank: String(watch("rank") ?? "") || undefined,
-      server: String(watch("server") ?? "") || undefined,
-      skinCount: watch("skinCount") ? Number(watch("skinCount")) : undefined,
-      heroCount: watch("heroCount") ? Number(watch("heroCount")) : undefined,
-      highlights: [],
-      imagePreviews: [],
-      imagesPersisted: false,
-      status: "draft",
-    });
-    toast.success("Draft disimpan", {
-      description: "Lanjutkan kapan saja dari tab “Listing Saya” di halaman profil.",
-    });
-    reset();
-    setImages([]);
-    router.push("/profil?tab=listing");
+
+    let imagePaths: string[] = [];
+
+    try {
+      imagePaths = await uploadListingImages();
+
+      const response = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          game,
+          title,
+          price,
+          description:
+            String(watch("description") ?? "") ||
+            "Draft listing — deskripsi belum dilengkapi.",
+          level: String(watch("level") ?? "") || null,
+          rank: String(watch("rank") ?? "") || null,
+          server: String(watch("server") ?? "") || null,
+          skinCount: watch("skinCount") ? Number(watch("skinCount")) : null,
+          heroCount: watch("heroCount") ? Number(watch("heroCount")) : null,
+          highlights: [],
+          imagePaths,
+          status: "draft",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Gagal menyimpan draft.");
+      }
+
+      images.forEach((url) => URL.revokeObjectURL(url));
+      setImages([]);
+      setImageFiles([]);
+      reset();
+
+      toast.success("Draft berhasil disimpan", {
+        description: "Draft tersimpan di akunmu dan bisa dilanjutkan nanti.",
+      });
+
+      router.push("/profil?tab=listing");
+    } catch (error) {
+      if (imagePaths.length) {
+        const supabase = createSupabaseClient();
+        await supabase.storage.from("listing-images").remove(imagePaths);
+      }
+
+      toast.error("Gagal menyimpan draft", {
+        description: error instanceof Error ? error.message : "Terjadi kesalahan.",
+      });
+    }
   }
 
   return (

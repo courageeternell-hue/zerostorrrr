@@ -24,14 +24,15 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
   );
 }
 
-const USER_LISTING_STYLES: Record<UserListingStatus, { label: string; className: string }> = {
+const USER_LISTING_STYLES: Record<UserListingStatus | "terjual", { label: string; className: string }> = {
   draft: { label: "Draft", className: "bg-white/10 text-foreground/80 ring-white/20" },
   menunggu_review: { label: "Menunggu Review", className: "bg-amber-400/10 text-amber-300 ring-amber-400/30" },
   tayang: { label: "Tayang", className: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30" },
   ditolak: { label: "Ditolak", className: "bg-brand/10 text-brand ring-brand/40" },
+  terjual: { label: "Terjual", className: "bg-sky-400/10 text-sky-300 ring-sky-400/30" },
 };
 
-export function UserListingStatusBadge({ status }: { status: UserListingStatus }) {
+export function UserListingStatusBadge({ status }: { status: UserListingStatus | "terjual" }) {
   const s = USER_LISTING_STYLES[status];
   return (
     <span

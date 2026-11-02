@@ -48,6 +48,16 @@ import { cn } from "@/lib/utils";
 
 type Tab = "listing" | "pesanan" | "pengaturan";
 
+type ProfileListing = {
+  id: string;
+  game: Parameters<typeof gameName>[0];
+  title: string;
+  price: number;
+  status: "draft" | "menunggu_review" | "tayang" | "ditolak" | "terjual";
+  created_at: string;
+  image_urls: string[];
+};
+
 const TABS: { value: Tab; label: string; icon: typeof Store }[] = [
   { value: "listing", label: "Listing Saya", icon: Store },
   { value: "pesanan", label: "Riwayat Pesanan", icon: ShoppingBag },
@@ -107,9 +117,49 @@ function ProfileContent() {
   const [authPassword, setAuthPassword] = useState("");
   const [authSubmitting, setAuthSubmitting] = useState(false);
 
-  const userListings = useUserListings((s) => s.listings);
-  const removeUserListing = useUserListings((s) => s.remove);
+  const [userListings, setUserListings] = useState<ProfileListing[]>([]);
+  const [listingsLoading, setListingsLoading] = useState(false);
+  const [listingsError, setListingsError] = useState<string | null>(null);
   const orders = useOrders((s) => s.orders);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadListings() {
+      if (!user?.id) {
+        setUserListings([]);
+        return;
+      }
+
+      setListingsLoading(true);
+      setListingsError(null);
+
+      try {
+        const response = await fetch("/api/listings", { cache: "no-store" });
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Gagal mengambil listing.");
+        }
+
+        if (active) setUserListings(result.listings ?? []);
+      } catch (error) {
+        if (active) {
+          setListingsError(
+            error instanceof Error ? error.message : "Gagal mengambil listing."
+          );
+        }
+      } finally {
+        if (active) setListingsLoading(false);
+      }
+    }
+
+    void loadListings();
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
 
   const [emailNotif, setEmailNotif] = useState(true);
   const [promoNotif, setPromoNotif] = useState(false);
@@ -321,10 +371,10 @@ function ProfileContent() {
                   className="flex items-center gap-4 rounded-2xl glass liquid-sheen p-4"
                 >
                   <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-xl bg-white/5">
-                    {l.imagePreviews[0] ? (
+                    {l.image_urls[0] ? (
                        
                       <img
-                        src={l.imagePreviews[0]}
+                        src={l.image_urls[0]}
                         alt=""
                         className="h-full w-full object-cover"
                       />
@@ -338,7 +388,7 @@ function ProfileContent() {
                     <p className="line-clamp-1 text-sm font-semibold">{l.title}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {gameName(l.game)} · {formatRupiah(l.price)} ·{" "}
-                      {formatDateID(l.createdAt)}
+                      {formatDateID(l.created_at)}
                     </p>
                     <div className="mt-1.5">
                       <UserListingStatusBadge status={l.status} />
@@ -367,7 +417,7 @@ function ProfileContent() {
                             Hapus listing ini?
                           </AlertDialogTitle>
                           <AlertDialogDescription className="text-muted-foreground">
-                            “{l.title}” akan dihapus permanen dari penyimpanan browser.
+                            “{l.title}” akan dihapus permanen dari akunmu.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -375,9 +425,31 @@ function ProfileContent() {
                             Batal
                           </AlertDialogCancel>
                           <AlertDialogAction
-                            onClick={() => {
-                              removeUserListing(l.id);
-                              toast("Listing dihapus");
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(
+                                  `/api/listings/${encodeURIComponent(l.id)}`,
+                                  { method: "DELETE" }
+                                );
+                                const result = await response.json();
+
+                                if (!response.ok) {
+                                  throw new Error(
+                                    result.error || "Gagal menghapus listing."
+                                  );
+                                }
+
+                                setUserListings((current) =>
+                                  current.filter((item) => item.id !== l.id)
+                                );
+                                toast.success("Listing berhasil dihapus");
+                              } catch (error) {
+                                toast.error(
+                                  error instanceof Error
+                                    ? error.message
+                                    : "Gagal menghapus listing."
+                                );
+                              }
                             }}
                             className="bg-brand text-white hover:bg-brand-strong"
                           >
