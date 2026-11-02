@@ -177,10 +177,10 @@ const advantages = [
                   tersedia untuk membantumu.
                 </p>
                 <Link
-                  href="/jual"
+                  href="/partner"
                   className="mt-6 inline-flex h-12 items-center justify-center rounded-xl bg-white px-7 text-sm font-bold text-black transition-all hover:bg-white/90 active:scale-[0.98]"
                 >
-                  Mulai Jual Sekarang
+                  Join Partner
                 </Link>
               </div>
               <div className="relative hidden aspect-[16/9] overflow-hidden rounded-2xl md:block">
