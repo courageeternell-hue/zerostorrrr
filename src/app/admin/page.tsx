@@ -149,6 +149,7 @@ export default function AdminPage() {
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState("");
   const [maintenanceDuration, setMaintenanceDuration] = useState(60);
+  const [maintenanceDurationUnit, setMaintenanceDurationUnit] = useState<"detik" | "menit" | "jam">("menit");
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
   const [maintenanceSaving, setMaintenanceSaving] = useState(false);
 
@@ -165,7 +166,7 @@ export default function AdminPage() {
           setMaintenanceEnabled(payload.settings.maintenance_enabled);
           setMaintenanceMessage(payload.settings.maintenance_message ?? "");
           setMaintenanceDuration(
-            payload.settings.maintenance_duration_minutes ?? 60
+            payload.settings.maintenance_duration_seconds ?? 3600
           );
         }
       } catch (error) {
@@ -190,7 +191,7 @@ export default function AdminPage() {
         body: JSON.stringify({
           maintenance_enabled: maintenanceEnabled,
           maintenance_message: maintenanceMessage,
-          maintenance_duration_minutes: maintenanceDuration,
+          maintenance_duration_seconds: maintenanceDuration * (maintenanceDurationUnit === "jam" ? 3600 : maintenanceDurationUnit === "menit" ? 60 : 1),
         }),
       });
       const payload = await response.json();
@@ -865,7 +866,7 @@ export default function AdminPage() {
                       <input
                         type="number"
                         min={1}
-                        max={10080}
+                        max={maintenanceDurationUnit === "jam" ? 168 : maintenanceDurationUnit === "menit" ? 10080 : 604800}
                         step={1}
                         value={maintenanceDuration}
                         onChange={(event) =>
@@ -873,10 +874,20 @@ export default function AdminPage() {
                         }
                         className="h-12 w-32 rounded-xl border border-white/10 bg-black/30 px-4 text-white outline-none focus:border-red-500/60"
                       />
-                      <span className="text-sm text-muted-foreground">menit</span>
+                      <select
+                        value={maintenanceDurationUnit}
+                        onChange={(event) =>
+                          setMaintenanceDurationUnit(event.target.value as "detik" | "menit" | "jam")
+                        }
+                        className="h-12 rounded-xl border border-white/10 bg-black/30 px-4 text-white outline-none focus:border-red-500/60"
+                      >
+                        <option value="detik">Detik</option>
+                        <option value="menit">Menit</option>
+                        <option value="jam">Jam</option>
+                      </select>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Minimal 1 menit, maksimal 10.080 menit (7 hari).
+                      Minimal 1, maksimal 7 hari (168 jam / 10.080 menit / 604.800 detik).
                       Durasi mulai dihitung saat Maintenance pertama kali diaktifkan.
                     </p>
                   </div>
@@ -904,7 +915,7 @@ export default function AdminPage() {
                     disabled={
                       maintenanceSaving ||
                       maintenanceDuration < 1 ||
-                      maintenanceDuration > 10080 ||
+                      maintenanceDuration > (maintenanceDurationUnit === "jam" ? 168 : maintenanceDurationUnit === "menit" ? 10080 : 604800) ||
                       !Number.isInteger(maintenanceDuration) ||
                       !maintenanceMessage.trim()
                     }
