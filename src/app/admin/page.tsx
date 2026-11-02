@@ -502,10 +502,31 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
-      {/* Navigasi: sidebar desktop, chips mobile */}
-      <div className="lg:grid lg:grid-cols-[220px_1fr] lg:gap-8">
-        <nav aria-label="Navigasi admin" className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:mb-0 lg:block lg:space-y-1 lg:px-0">
+    <div className="min-h-screen bg-[#08090d] text-white">
+      <div className="mx-auto max-w-[1600px] px-3 py-5 sm:px-5 lg:px-8 lg:py-8">
+        <header className="mb-6 overflow-hidden rounded-3xl border border-white/[0.08] bg-gradient-to-br from-[#191116] via-[#101116] to-[#0c0d12] shadow-2xl shadow-black/30">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-7 sm:py-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-red-500/30 bg-red-600/15 shadow-lg shadow-red-950/30">
+                <ShieldAlert className="h-6 w-6 text-red-400" aria-hidden />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-red-400">ZERO STORE</p>
+                <h1 className="mt-1 text-lg font-black tracking-tight sm:text-xl">Admin Console</h1>
+                <p className="mt-1 text-xs text-white/45">Control center · Marketplace management</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-3 py-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+              <span className="text-[11px] font-semibold tracking-wide text-emerald-300">ADMIN SESSION</span>
+            </div>
+          </div>
+          <div className="h-px bg-gradient-to-r from-transparent via-red-500/50 to-transparent" />
+        </header>
+
+        {/* Navigasi: sidebar desktop, chips mobile */}
+        <div className="lg:grid lg:grid-cols-[250px_minmax(0,1fr)] lg:items-start lg:gap-7">
+          <nav aria-label="Navigasi admin" className="no-scrollbar -mx-3 mb-5 flex gap-2 overflow-x-auto px-3 pb-2 sm:-mx-5 sm:px-5 lg:sticky lg:top-5 lg:mx-0 lg:mb-0 lg:block lg:space-y-1.5 lg:rounded-3xl lg:border lg:border-white/[0.08] lg:bg-[#101116] lg:p-3 lg:px-3 lg:py-4 lg:shadow-xl lg:shadow-black/20">
           {NAV.map((item) => (
             <button
               key={item.value}
@@ -513,10 +534,10 @@ export default function AdminPage() {
               onClick={() => setSection(item.value)}
               aria-current={section === item.value ? "true" : undefined}
               className={cn(
-                "flex shrink-0 items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-all lg:w-full",
+                "flex shrink-0 items-center gap-3 rounded-xl border border-transparent px-4 py-3 text-sm font-semibold transition-all duration-200 lg:w-full",
                 section === item.value
-                  ? "bg-brand text-white glow-red"
-                  : "glass text-muted-foreground hover:text-foreground",
+                  ? "border-red-500/20 bg-gradient-to-r from-red-600/25 to-red-600/[0.06] text-white shadow-lg shadow-red-950/20 lg:border-l-2 lg:border-l-red-500"
+                  : "bg-white/[0.02] text-white/55 hover:border-white/[0.07] hover:bg-white/[0.06] hover:text-white",
               )}
             >
               <item.icon className="h-4 w-4" aria-hidden />
@@ -1209,6 +1230,7 @@ export default function AdminPage() {
             </section>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
