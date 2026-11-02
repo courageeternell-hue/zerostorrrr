@@ -89,6 +89,7 @@ type Section =
   | "listing"
   | "pengajuan"
   | "partner"
+  | "maintenance"
   | "kategori"
   | "pesanan"
   | "pengguna"
@@ -99,6 +100,7 @@ const NAV: { value: Section; label: string; icon: typeof LayoutGrid }[] = [
   { value: "listing", label: "Kelola Listing", icon: ListOrdered },
   { value: "pengajuan", label: "Pengajuan", icon: FileClock },
   { value: "partner", label: "Partner", icon: BadgeCheck },
+  { value: "maintenance", label: "Maintenance", icon: ShieldAlert },
   { value: "kategori", label: "Kategori", icon: LayoutGrid },
   { value: "pesanan", label: "Pesanan", icon: ShoppingBag },
   { value: "pengguna", label: "Pengguna", icon: Users },
@@ -143,6 +145,66 @@ export default function AdminPage() {
   const [partnerError, setPartnerError] = useState<string | null>(null);
   const [reviewingPartner, setReviewingPartner] = useState<string | null>(null);
   const [partnerNotes, setPartnerNotes] = useState<Record<string, string>>({});
+
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState("");
+  const [maintenanceDuration, setMaintenanceDuration] = useState(60);
+  const [maintenanceLoading, setMaintenanceLoading] = useState(true);
+  const [maintenanceSaving, setMaintenanceSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadMaintenanceSettings() {
+      try {
+        const response = await fetch("/api/admin/settings", { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error ?? "Gagal memuat pengaturan.");
+
+        if (active && payload.settings) {
+          setMaintenanceEnabled(payload.settings.maintenance_enabled);
+          setMaintenanceMessage(payload.settings.maintenance_message ?? "");
+          setMaintenanceDuration(
+            payload.settings.maintenance_duration_minutes ?? 60
+          );
+        }
+      } catch (error) {
+        if (active) toast.error(
+          error instanceof Error ? error.message : "Gagal memuat pengaturan Maintenance."
+        );
+      } finally {
+        if (active) setMaintenanceLoading(false);
+      }
+    }
+
+    void loadMaintenanceSettings();
+    return () => { active = false; };
+  }, []);
+
+  async function saveMaintenanceSettings() {
+    setMaintenanceSaving(true);
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          maintenance_enabled: maintenanceEnabled,
+          maintenance_message: maintenanceMessage,
+          maintenance_duration_minutes: maintenanceDuration,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "Gagal menyimpan pengaturan.");
+
+      toast.success("Pengaturan Maintenance berhasil disimpan.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Gagal menyimpan pengaturan Maintenance."
+      );
+    } finally {
+      setMaintenanceSaving(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -753,6 +815,104 @@ export default function AdminPage() {
                     </article>
                   ))}
                 </div>
+              )}
+            </section>
+          )}
+
+          {/* ═══ Maintenance ═══ */}
+          {section === "maintenance" && (
+            <section aria-label="Pengaturan Maintenance" className="space-y-6">
+              <AdminHeading
+                title="Maintenance Mode"
+                subtitle="Atur waktu, pesan, dan status pemeliharaan ZERO STORE."
+              />
+
+              {maintenanceLoading ? (
+                <div className="rounded-2xl glass p-6 text-sm text-muted-foreground">
+                  Memuat pengaturan Maintenance...
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-red-500/20 bg-red-500/[0.06] p-5 sm:p-6">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-white">Status Maintenance</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {maintenanceEnabled
+                            ? "Pengunjung sedang dibatasi dari website."
+                            : "Website dapat diakses oleh pengunjung."}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={maintenanceEnabled}
+                        onCheckedChange={setMaintenanceEnabled}
+                        disabled={maintenanceSaving}
+                        aria-label="Aktifkan Maintenance"
+                      />
+                    </div>
+                    <div className="mt-4 rounded-xl bg-black/30 p-3 text-xs leading-6 text-white/55">
+                      {maintenanceEnabled
+                        ? "Maintenance aktif. Mematikan sakelar dan menyimpan akan membuka website kembali."
+                        : "Atur durasi dan pesan terlebih dahulu. Countdown dimulai saat lu menyimpan status ON."}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl glass p-5 sm:p-6">
+                    <label className="mb-2 block text-sm font-semibold">
+                      Durasi Maintenance
+                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        type="number"
+                        min={1}
+                        max={10080}
+                        step={1}
+                        value={maintenanceDuration}
+                        onChange={(event) =>
+                          setMaintenanceDuration(Number(event.target.value))
+                        }
+                        className="h-12 w-32 rounded-xl border border-white/10 bg-black/30 px-4 text-white outline-none focus:border-red-500/60"
+                      />
+                      <span className="text-sm text-muted-foreground">menit</span>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Minimal 1 menit, maksimal 10.080 menit (7 hari).
+                      Durasi mulai dihitung saat Maintenance pertama kali diaktifkan.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl glass p-5 sm:p-6">
+                    <label className="mb-2 block text-sm font-semibold">
+                      Pesan untuk Pengunjung
+                    </label>
+                    <Textarea
+                      value={maintenanceMessage}
+                      onChange={(event) => setMaintenanceMessage(event.target.value)}
+                      maxLength={1000}
+                      rows={5}
+                      placeholder="Contoh: ZERO STORE sedang melakukan peningkatan sistem. Kami segera kembali!"
+                      className="resize-y border-white/10 bg-black/30"
+                    />
+                    <p className="mt-2 text-right text-xs text-muted-foreground">
+                      {maintenanceMessage.length}/1000 karakter
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => void saveMaintenanceSettings()}
+                    disabled={
+                      maintenanceSaving ||
+                      maintenanceDuration < 1 ||
+                      maintenanceDuration > 10080 ||
+                      !Number.isInteger(maintenanceDuration) ||
+                      !maintenanceMessage.trim()
+                    }
+                    className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-red-600 px-5 text-sm font-bold text-white shadow-lg shadow-red-950/30 transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                  >
+                    {maintenanceSaving ? "Menyimpan..." : "Simpan Pengaturan Maintenance"}
+                  </button>
+                </>
               )}
             </section>
           )}

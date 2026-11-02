@@ -34,34 +34,83 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAdminRoute = request.nextUrl.pathname === '/admin'
-    || request.nextUrl.pathname.startsWith('/admin/')
 
-  if (isAdminRoute) {
-    let isAdmin = false
+  const pathname = request.nextUrl.pathname
 
-    if (user) {
-      const { data, error } = await supabase
-        .from('admin_users')
-        .select('user_id')
-        .eq('user_id', user.id)
+  let isAdmin = false
+
+  if (user) {
+    const { data } = await supabase
+      .from('admin_users')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    isAdmin = Boolean(data)
+  }
+
+  const isAdminRoute =
+    pathname === '/admin' || pathname.startsWith('/admin/')
+
+  if (isAdminRoute && !isAdmin) {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/'
+    redirectUrl.search = ''
+
+    const redirectResponse = NextResponse.redirect(redirectUrl)
+
+    response.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie)
+    })
+
+    return redirectResponse
+  }
+
+  if (!isAdmin) {
+    const isMaintenancePage = pathname === '/maintenance'
+
+    if (!isMaintenancePage) {
+      const { data: settings, error } = await supabase
+        .from('site_settings')
+        .select('maintenance_enabled, maintenance_eta')
+        .eq('id', 1)
         .maybeSingle()
 
-      isAdmin = !error && Boolean(data)
-    }
+      // Fail-closed: jika status tidak bisa dipastikan, blokir pengunjung.
+      let maintenanceActive = Boolean(error || !settings)
 
-    if (!isAdmin) {
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/'
-      redirectUrl.search = ''
+      if (settings?.maintenance_enabled) {
+        const eta = settings.maintenance_eta
+          ? new Date(settings.maintenance_eta).getTime()
+          : null
 
-      const redirectResponse = NextResponse.redirect(redirectUrl)
+        // ETA kosong atau tidak valid berarti Maintenance tetap aktif.
+        maintenanceActive =
+          eta === null || !Number.isFinite(eta) || eta > Date.now()
+      } else if (settings && !error) {
+        maintenanceActive = false
+      }
 
-      response.cookies.getAll().forEach((cookie) => {
-        redirectResponse.cookies.set(cookie)
-      })
+      if (maintenanceActive) {
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json(
+            { error: 'ZERO STORE sedang dalam Maintenance.' },
+            { status: 503 }
+          )
+        }
 
-      return redirectResponse
+        const redirectUrl = request.nextUrl.clone()
+        redirectUrl.pathname = '/maintenance'
+        redirectUrl.search = ''
+
+        const redirectResponse = NextResponse.redirect(redirectUrl)
+
+        response.cookies.getAll().forEach((cookie) => {
+          redirectResponse.cookies.set(cookie)
+        })
+
+        return redirectResponse
+      }
     }
   }
 
