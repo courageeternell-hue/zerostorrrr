@@ -73,10 +73,22 @@ type AdminSeller = {
   totalSales: number | null;
 };
 
+type PartnerApplication = {
+  id: string;
+  user_id: string;
+  amount: number;
+  proof_path: string;
+  proof_url: string | null;
+  status: "pending" | "approved" | "rejected";
+  admin_note: string | null;
+  created_at: string;
+};
+
 type Section =
   | "ringkasan"
   | "listing"
   | "pengajuan"
+  | "partner"
   | "kategori"
   | "pesanan"
   | "pengguna"
@@ -86,6 +98,7 @@ const NAV: { value: Section; label: string; icon: typeof LayoutGrid }[] = [
   { value: "ringkasan", label: "Ringkasan", icon: LayoutGrid },
   { value: "listing", label: "Kelola Listing", icon: ListOrdered },
   { value: "pengajuan", label: "Pengajuan", icon: FileClock },
+  { value: "partner", label: "Partner", icon: BadgeCheck },
   { value: "kategori", label: "Kategori", icon: LayoutGrid },
   { value: "pesanan", label: "Pesanan", icon: ShoppingBag },
   { value: "pengguna", label: "Pengguna", icon: Users },
@@ -125,6 +138,11 @@ export default function AdminPage() {
   const [selectedSeller, setSelectedSeller] = useState<AdminSeller | null>(null);
   const [sellerReason, setSellerReason] = useState("");
   const [savingSeller, setSavingSeller] = useState(false);
+  const [partnerApplications, setPartnerApplications] = useState<PartnerApplication[]>([]);
+  const [partnerLoading, setPartnerLoading] = useState(true);
+  const [partnerError, setPartnerError] = useState<string | null>(null);
+  const [reviewingPartner, setReviewingPartner] = useState<string | null>(null);
+  const [partnerNotes, setPartnerNotes] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let active = true;
@@ -336,6 +354,80 @@ export default function AdminPage() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadPartnerApplications() {
+      try {
+        const response = await fetch("/api/admin/partner-applications", {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Gagal mengambil pengajuan Partner.");
+        }
+        if (active) setPartnerApplications(payload.applications ?? []);
+      } catch (error) {
+        if (active) {
+          setPartnerError(
+            error instanceof Error ? error.message : "Gagal mengambil pengajuan Partner."
+          );
+        }
+      } finally {
+        if (active) setPartnerLoading(false);
+      }
+    }
+
+    void loadPartnerApplications();
+    return () => { active = false; };
+  }, []);
+
+  async function reviewPartnerApplication(
+    id: string,
+    status: "approved" | "rejected"
+  ) {
+    setReviewingPartner(id);
+    try {
+      const response = await fetch("/api/admin/partner-applications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          status,
+          admin_note: partnerNotes[id] ?? "",
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Gagal memproses pengajuan Partner.");
+      }
+
+      setPartnerApplications((current) =>
+        current.map((item) =>
+          item.id === id
+            ? { ...item, status, admin_note: payload.application.admin_note }
+            : item
+        )
+      );
+      toast.success(
+        status === "approved"
+          ? "Partner berhasil diaktifkan."
+          : "Pengajuan Partner ditolak."
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Gagal memproses pengajuan."
+      );
+    } finally {
+      setReviewingPartner(null);
+    }
+  }
+
+  const pendingPartnerApplications = partnerApplications.filter(
+    (item) => item.status === "pending"
+  );
+
   const pending = useMemo(
     () => adminListings.filter((l) => l.status === "menunggu_review"),
     [adminListings],
@@ -368,6 +460,11 @@ export default function AdminPage() {
             >
               <item.icon className="h-4 w-4" aria-hidden />
               {item.label}
+              {item.value === "partner" && pendingPartnerApplications.length > 0 && (
+                <span className="ml-1 rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-bold">
+                  {pendingPartnerApplications.length}
+                </span>
+              )}
               {item.value === "pengajuan" && pending.length > 0 && (
                 <span className="ml-1 rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-bold">
                   {pending.length}
@@ -539,6 +636,123 @@ export default function AdminPage() {
                     </li>
                   ))}
                 </ul>
+              )}
+            </section>
+          )}
+
+          {/* ═══ Partner ═══ */}
+          {section === "partner" && (
+            <section aria-label="Verifikasi Partner">
+              <AdminHeading
+                title="Verifikasi Partner"
+                subtitle="Periksa bukti transfer dan proses keanggotaan Partner."
+              />
+
+              {partnerLoading ? (
+                <div className="rounded-2xl glass p-8 text-center text-sm text-muted-foreground">
+                  Memuat pengajuan Partner...
+                </div>
+              ) : partnerError ? (
+                <div className="rounded-2xl border border-red-400/30 bg-red-400/10 p-5 text-sm text-red-300">
+                  {partnerError}
+                </div>
+              ) : partnerApplications.length === 0 ? (
+                <EmptyState
+                  icon={BadgeCheck}
+                  title="Belum ada pengajuan Partner"
+                  description="Pengajuan Join Partner akan muncul di sini setelah pengguna mengirim bukti transfer."
+                />
+              ) : (
+                <div className="space-y-4">
+                  {partnerApplications.map((application) => (
+                    <article key={application.id} className="rounded-2xl glass liquid-sheen p-4 md:p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-semibold">Pengajuan Partner</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            ID pengguna: {application.user_id}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDateID(application.created_at)}
+                          </p>
+                        </div>
+                        <span className={cn(
+                          "rounded-full px-3 py-1 text-xs font-semibold",
+                          application.status === "pending"
+                            ? "bg-amber-400/10 text-amber-300"
+                            : application.status === "approved"
+                              ? "bg-emerald-400/10 text-emerald-300"
+                              : "bg-red-400/10 text-red-300"
+                        )}>
+                          {application.status === "pending" ? "Menunggu" :
+                           application.status === "approved" ? "Disetujui" : "Ditolak"}
+                        </span>
+                      </div>
+
+                      <p className="mt-3 text-lg font-bold">
+                        {formatRupiah(application.amount)}
+                      </p>
+
+                      {application.proof_url ? (
+                        <a href={application.proof_url} target="_blank" rel="noreferrer" className="mt-3 inline-block">
+                          <img
+                            src={application.proof_url}
+                            alt="Bukti transfer Partner"
+                            className="max-h-72 w-auto rounded-xl border border-white/10 object-contain"
+                          />
+                          <span className="mt-2 flex items-center gap-1 text-xs text-brand">
+                            Lihat bukti ukuran penuh <ExternalLink className="h-3 w-3" />
+                          </span>
+                        </a>
+                      ) : (
+                        <p className="mt-3 text-sm text-red-300">Bukti transfer tidak dapat dimuat.</p>
+                      )}
+
+                      {application.status === "pending" && (
+                        <div className="mt-4 space-y-3">
+                          <Textarea
+                            value={partnerNotes[application.id] ?? ""}
+                            onChange={(event) =>
+                              setPartnerNotes((current) => ({
+                                ...current,
+                                [application.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="Catatan admin (opsional)"
+                            maxLength={500}
+                            className="border-white/10 bg-black/20"
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={reviewingPartner === application.id}
+                              onClick={() => void reviewPartnerApplication(application.id, "approved")}
+                              className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-500/15 px-4 text-sm font-semibold text-emerald-300 ring-1 ring-inset ring-emerald-500/30 disabled:opacity-50"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              {reviewingPartner === application.id ? "Memproses..." : "Setujui Partner"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={reviewingPartner === application.id}
+                              onClick={() => void reviewPartnerApplication(application.id, "rejected")}
+                              className="inline-flex h-10 items-center gap-2 rounded-lg bg-red-500/10 px-4 text-sm font-semibold text-red-300 ring-1 ring-inset ring-red-500/30 disabled:opacity-50"
+                            >
+                              <XCircle className="h-4 w-4" />
+                              Tolak
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {application.admin_note && (
+                        <p className="mt-3 rounded-lg bg-white/5 p-3 text-sm text-muted-foreground">
+                          Catatan admin: {application.admin_note}
+                        </p>
+                      )}
+                    </article>
+                  ))}
+                </div>
               )}
             </section>
           )}

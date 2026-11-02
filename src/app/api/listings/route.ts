@@ -25,6 +25,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const { data: admin } = await supabase
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const { data: partner } = await supabase
+    .from("partner_memberships")
+    .select("status")
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!admin && !partner) {
+    return NextResponse.json(
+      { error: "Hanya admin dan Partner aktif yang boleh menjual akun." },
+      { status: 403 }
+    );
+  }
+
   const { data: moderation } = await supabase
     .from("user_moderation")
     .select("suspended")
