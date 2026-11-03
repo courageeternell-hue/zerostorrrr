@@ -15,6 +15,10 @@ jobs:
     name: Build ZERO STORE APK
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,21 +34,27 @@ jobs:
         with:
           accept-android-sdk-licenses: true
 
-      - name: Install Android Components
+      - name: Install Android SDK Components
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.1.0"
+          yes | sdkmanager --licenses
+          sdkmanager --sdk_root="$ANDROID_HOME" \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.1.0"
 
-      - name: Configure Bubblewrap
+          echo "Checking Android SDK:"
+          ls -la "$ANDROID_HOME"
+          ls -la "$ANDROID_HOME/build-tools"
+          test -d "$ANDROID_HOME/build-tools/36.1.0"
+
+      - name: Setup Bubblewrap
         run: |
-          SDK_PATH="/usr/local/lib/android/sdk"
-          echo "JAVA_HOME=$JAVA_HOME"
-          echo "ANDROID SDK=$SDK_PATH"
-          test -d "$SDK_PATH/build-tools"
-          test -d "$SDK_PATH/platforms"
-          test -d "$SDK_PATH/cmdline-tools"
-          mkdir -p "$HOME/.bubblewrap"
-          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$SDK_PATH" > "$HOME/.bubblewrap/config.json"
-          cat "$HOME/.bubblewrap/config.json"
+          npm install -g @bubblewrap/cli@1.27.0
+          bubblewrap updateConfig \
+            --jdkPath="$JAVA_HOME" \
+            --androidSdkPath="$ANDROID_HOME"
+
+          bubblewrap doctor
 
       - name: Restore Keystore
         env:
@@ -53,12 +63,6 @@ jobs:
           test -n "$KEYSTORE_BASE64"
           echo "$KEYSTORE_BASE64" | base64 --decode > zero-store-release.keystore
           test -s zero-store-release.keystore
-
-      - name: Install Bubblewrap
-        run: npm install -g @bubblewrap/cli@1.27.0
-
-      - name: Check Bubblewrap Environment
-        run: bubblewrap doctor
 
       - name: Generate Android Project
         run: bubblewrap update --skipVersionUpgrade
