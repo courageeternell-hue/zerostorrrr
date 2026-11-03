@@ -1,0 +1,49 @@
+name: Build ZERO STORE APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK Components
+        run: sdkmanager "platforms;android-36" "build-tools;36.1.0"
+
+      - name: Restore Keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > zero-store-release.keystore
+
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli@1.27.0
+
+      - name: Generate Android Project
+        run: bubblewrap update --skipVersionUpgrade
+
+      - name: Build APK
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bubblewrap build
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZERO-STORE-APK
+          path: app-release-signed.apk
+          if-no-files-found: error
