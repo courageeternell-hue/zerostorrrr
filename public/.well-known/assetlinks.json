@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.zerostore.app",
+      "sha256_cert_fingerprints": [
+        "F6:9B:EB:97:DB:30:35:32:EA:FB:50:A7:40:36:1C:55:7F:CA:92:9B:3D:4E:38:54:D9:C5:96:F0:19:EC:71:72"
+      ]
+    }
+  }
+]

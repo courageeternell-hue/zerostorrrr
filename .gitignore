@@ -57,3 +57,6 @@ server.log
 .env
 .env.*
 !.env.example
+zero-store-release.keystore
+*.keystore
+*.jks
