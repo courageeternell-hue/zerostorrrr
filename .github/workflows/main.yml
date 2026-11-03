@@ -36,9 +36,12 @@ jobs:
 
       - name: Configure Bubblewrap
         run: |
+          SDK_PATH="$(dirname "$(dirname "$(dirname "$(command -v sdkmanager)")")")"
+          echo "Android SDK detected at: $SDK_PATH"
+          test -d "$SDK_PATH/platform-tools"
+          test -d "$SDK_PATH/platforms"
           mkdir -p "$HOME/.bubblewrap"
-          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$ANDROID_HOME" > "$HOME/.bubblewrap/config.json"
-          cat "$HOME/.bubblewrap/config.json"
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$SDK_PATH" > "$HOME/.bubblewrap/config.json"
 
       - name: Restore Keystore
         env:
