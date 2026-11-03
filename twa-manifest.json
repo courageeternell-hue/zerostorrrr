@@ -1,0 +1,26 @@
+{
+  "packageId": "com.zerostore.app",
+  "host": "zerostorev5.vercel.app",
+  "name": "ZERO STORE",
+  "launcherName": "ZERO STORE",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#050507",
+  "themeColorDark": "#050507",
+  "navigationColor": "#050507",
+  "navigationColorDark": "#050507",
+  "backgroundColor": "#050507",
+  "startUrl": "/",
+  "iconUrl": "https://zerostorev5.vercel.app/icon-512.png",
+  "maskableIconUrl": "https://zerostorev5.vercel.app/icon-512.png",
+  "webManifestUrl": "https://zerostorev5.vercel.app/manifest.json",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "zero-store-release.keystore",
+    "alias": "zero-store"
+  },
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "minSdkVersion": 23,
+  "enableNotifications": false
+}
